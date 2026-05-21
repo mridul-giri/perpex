@@ -1,5 +1,5 @@
 {
-  "name": "nexora",
+  "name": "perpex",
   "private": true,
   "scripts": {
     "build": "turbo run build",
