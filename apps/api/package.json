@@ -11,6 +11,7 @@
     "@perpex/db": "workspace:*",
     "@perpex/schemas": "workspace:*",
     "@perpex/types": "workspace:*",
+    "@perpex/redis": "workspace:*",
     "@types/bcrypt": "^6.0.0",
     "@types/bun": "latest",
     "@types/express": "^5.0.6",

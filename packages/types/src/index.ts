@@ -75,27 +75,41 @@ export type OrderBook = {
   indexPrice: number;
 };
 
+export interface PayloadType {
+  userId: string;
+  messageType: string;
+  symbol: MarketSymbol;
+  type: OrderType;
+  side: OrderSide;
+  quantity: number;
+  price: number;
+  correlationId?: string;
+}
+
+export interface ResponseType {
+  [key: string]: any;
+  correlationId: string;
+  ok: boolean;
+  error?: string;
+}
+
+export type StreamMessages = {
+  name: string;
+  messages: {
+    id: string;
+    message: {
+      [x: string]: string;
+    };
+  }[];
+}[];
+
 export type OrderBooks = Record<string, OrderBook>;
 
 export type Asks = Record<number | string, PriceLevel>;
 
 export type Bids = Record<number | string, PriceLevel>;
 
-export enum Symbol {
-  BTCUSDT = "BTCUSDT",
-  SOLUSDT = "SOLUSDT",
-}
-export enum Type {
-  LIMIT = "LIMIT",
-  MARKET = "MARKET",
-}
-export enum Side {
-  LONG = "LONG",
-  SHORT = "SHORT",
-}
-export enum Status {
-  OPEN = "OPEN",
-  FILLED = "FILLED",
-  PARTIAL = "PARTIAL",
-  CANCELLED = "CANCELLED",
-}
+export type MarketSymbol = "BTCUSDT" | "SOLUSDT" | "ETHUSDT";
+export type OrderType = "limit" | "market";
+export type OrderSide = "long" | "short";
+export type OrderStatus = "open" | "filled" | "partial" | "cancelled";
