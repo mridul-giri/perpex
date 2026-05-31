@@ -1,4 +1,4 @@
-import { symbol, type number } from "zod";
+import { number, symbol } from "zod";
 import { ApiError } from "../utils/api-error";
 import {
   Symbol,
@@ -97,6 +97,8 @@ const users: Users = [
         price: 80,
         quantity: 1,
         status: Status.OPEN,
+        // fills: {}[]
+        // totalFills: number
       },
     ],
   },
@@ -173,6 +175,8 @@ export const placeOrder = (orderInput: OrderInput) => {
                 symbol: orderInput.symbol,
                 quantity: orderInput.quantity,
                 price: Number(asksKey),
+                makerUserId,
+                takerUserId
               };
               fills.push(fill);
 

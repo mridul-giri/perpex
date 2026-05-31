@@ -6,6 +6,3 @@ export const subscriber = createClient();
 export const connectRedis = async () => {
   await Promise.all([publisher.connect(), subscriber.connect()]);
 };
-
-export const ordersCreate = "orders:create";
-export const ordersAck = "orders:ack";

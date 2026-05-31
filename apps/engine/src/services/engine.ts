@@ -1,8 +1,9 @@
 import type { PayloadType } from "@perpex/types";
-import { OrderBook } from "./orderBook";
+import { OrderBook } from "./order-book";
+import { UserService } from "./user";
 
 export class Engine {
-  private orderBook = new OrderBook();
+  private orderBook = new OrderBook(new UserService());
 
   process(payload: PayloadType) {
     switch (payload.messageType) {

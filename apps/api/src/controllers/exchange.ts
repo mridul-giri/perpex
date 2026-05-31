@@ -7,8 +7,9 @@ import type {
   ResponseType,
 } from "@perpex/types";
 import { orderSchema } from "@perpex/schemas";
-import { ordersCreate, publishToStream } from "@perpex/redis";
+import { publishToStream } from "@perpex/redis";
 import { registerResolver } from "../services/listener";
+import { config } from "@perpex/config/src";
 
 const markPrice = 100;
 
@@ -20,17 +21,21 @@ export const createOrder = async (req: Request, res: Response) => {
   const correlationId = crypto.randomUUID();
   const payload: PayloadType = {
     userId: "1",
-    messageType: "create-order",
-    symbol: orderInput.symbol as MarketSymbol,
-    type: orderInput.type as OrderType,
-    side: orderInput.side as OrderSide,
+    symbol: orderInput.symbol,
+    type: orderInput.type,
+    side: orderInput.side,
     quantity: orderInput.quantity,
     price,
+    leverage: orderInput.leverage,
   };
 
-  const result: ResponseType = await new Promise(async (resolve) => {
-    registerResolver(correlationId, resolve);
-    publishToStream(ordersCreate, { ...payload, correlationId });
+  const result: ResponseType = await new Promise(async (resolve, reject) => {
+    registerResolver(correlationId, resolve, reject, config.RES_TIMEOUT);
+    publishToStream(config.ORDERS_CREATE, {
+      ...payload,
+      messageType: "create-order",
+      correlationId,
+    });
   });
 
   console.log("result", result);
