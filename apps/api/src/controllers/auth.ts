@@ -5,6 +5,8 @@ import bcrypt from "bcrypt";
 import { addCookie } from "../utils/add-cookie";
 import type { Request, Response } from "express";
 import { signupSchema, signinSchema } from "@perpex/schemas";
+import { publishToStream } from "@perpex/redis";
+import { config } from "@perpex/config";
 
 export const signup = async (req: Request, res: Response) => {
   const signupInput = signupSchema.parse(req.body);
@@ -25,6 +27,11 @@ export const signup = async (req: Request, res: Response) => {
       email: signupInput.email,
       password: hashedPassword,
     },
+  });
+
+  await publishToStream(config.ORDERS_CREATE, {
+    userId: user.id,
+    messageType: "store-user",
   });
 
   await addCookie(user, res);

@@ -1,9 +1,8 @@
 import type { Asks, Bids, Order, PayloadType, User } from "@perpex/types";
-import { Users } from "../store/store";
 import { EngineError } from "../utils/engine-error";
 import type { UserService } from "./user";
 import { publishToStream } from "@perpex/redis";
-import { config } from "@perpex/config/src";
+import { config } from "@perpex/config";
 
 export class OrderBook {
   private bids: Map<number, Bids> = new Map();
@@ -13,9 +12,9 @@ export class OrderBook {
 
   async addOrder(payload: PayloadType) {
     switch (payload.type) {
-      case "limit": {
+      case "LIMIT": {
         switch (payload.side) {
-          case "long": {
+          case "LONG": {
             const user = this.userService.getUser(payload.userId);
             if (!user) throw new EngineError(404, "User not found");
 
@@ -29,22 +28,39 @@ export class OrderBook {
             if (userBalance < collateral)
               throw new EngineError(400, "Insufficient Balance");
 
+            const order: Order = {
+              orderId: crypto.randomUUID(),
+              userId: payload.userId,
+              market: payload.market,
+              type: payload.type,
+              side: payload.side,
+              price: payload.price,
+              quantity: payload.quantity,
+              filledQuantity: 0,
+              status: "Open",
+            };
+
+            await publishToStream(config.ORDERS_ACK, {
+              ...order,
+              messageType: "order-created",
+            });
+
             this.userService.lockBalance(user, collateral);
 
             break;
           }
-          case "short": {
+          case "SHORT": {
             break;
           }
         }
         break;
       }
-      case "market": {
+      case "MARKET": {
         switch (payload.side) {
-          case "long": {
+          case "LONG": {
             break;
           }
-          case "short": {
+          case "SHORT": {
             break;
           }
         }
@@ -53,7 +69,6 @@ export class OrderBook {
     }
   }
 
-  /** Computes required margin of the current order */
   private calculateCollateral(
     price: number,
     quantity: number,

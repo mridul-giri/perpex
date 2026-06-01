@@ -1,28 +1,41 @@
-import { connectRedis, publishToStream, subscriber } from "@perpex/redis";
+import {
+  connectRedis,
+  publishToStream,
+  readFromStream,
+  subscriber,
+} from "@perpex/redis";
 import type { PayloadType, StreamMessages } from "@perpex/types";
 import { EngineManager } from "./services/engine-manager";
-import { config } from "@perpex/config/src";
+import { config } from "@perpex/config";
 import { EngineError } from "./utils/engine-error";
+import { Users } from "./store/store";
 
 await connectRedis();
 
 const engineManager = new EngineManager();
 
+const storeUser = (payload: any) => {
+  Users.set(payload.userId, {
+    collateral: { availableBalance: 5000, lockedBalance: 0 },
+  });
+  console.log("user store", Users);
+};
+
 while (true) {
-  const stream = (await subscriber.xRead(
-    [{ key: config.ORDERS_CREATE, id: "$" }],
-    {
-      BLOCK: 0,
-      COUNT: 1,
-    },
-  )) as StreamMessages;
+  const stream = await readFromStream(config.ORDERS_CREATE);
 
   if (!stream[0] || stream.length === 0) continue;
 
   for (const { message } of stream[0].messages) {
     if (!message.data) continue;
-    const payload = JSON.parse(message.data) as PayloadType;
+    const payload = JSON.parse(message.data);
+
     try {
+      if (payload.messageType === "store-user") {
+        storeUser(payload);
+        break;
+      }
+
       const engine = engineManager.get(payload);
 
       const result = engine.process(payload);

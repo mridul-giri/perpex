@@ -3,9 +3,12 @@ import apiRouter from "./routes";
 import { errorMiddleware } from "./middlewares/error";
 import { connectRedis } from "@perpex/redis";
 import { readAckStream } from "./services/listener";
+import cookieParser from "cookie-parser";
 
 const app = express();
 app.use(express.json());
+
+app.use(cookieParser());
 
 await connectRedis();
 void readAckStream(); // fire and forget technique

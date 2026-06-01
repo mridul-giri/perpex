@@ -1,6 +1,6 @@
-import { config } from "@perpex/config/src";
+import { config } from "@perpex/config";
 import { readFromStream } from "@perpex/redis";
-import type { PayloadType, ResponseType } from "@perpex/types";
+import type { ResponseType } from "@perpex/types";
 
 export type ResolverType = {
   resolve: Function;

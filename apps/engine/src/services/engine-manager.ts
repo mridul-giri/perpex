@@ -1,4 +1,4 @@
-import type { PayloadType, MarketSymbol } from "@perpex/types";
+import type { PayloadType } from "@perpex/types";
 import { Engine } from "./engine";
 
 export class EngineManager {
@@ -6,12 +6,12 @@ export class EngineManager {
 
   private register(payload: PayloadType) {
     const market = new Engine();
-    this.markets.set(payload.symbol, market);
+    this.markets.set(payload.market, market);
     return market;
   }
 
   get(payload: PayloadType) {
-    const market = this.markets.get(payload.symbol);
+    const market = this.markets.get(payload.market);
     if (!market) {
       return this.register(payload);
     }
