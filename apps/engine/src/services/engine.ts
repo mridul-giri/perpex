@@ -12,8 +12,8 @@ export class Engine {
         break;
       }
       case "create-order": {
+        this.orderBook.addSeedData();
         return this.orderBook.addOrder(payload);
-        break;
       }
       case "cancel-order": {
         console.log("delete-order");

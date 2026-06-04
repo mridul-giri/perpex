@@ -11,6 +11,7 @@ exchangeRouter.post(
   authMiddleware,
   asyncHandler(createMarket),
 );
-exchangeRouter.post("/order", authMiddleware, asyncHandler(createOrder));
+// TODO: add authMiddleware here
+exchangeRouter.post("/order", asyncHandler(createOrder));
 
 export default exchangeRouter;

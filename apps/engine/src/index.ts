@@ -9,6 +9,7 @@ import { EngineManager } from "./services/engine-manager";
 import { config } from "@perpex/config";
 import { EngineError } from "./utils/engine-error";
 import { Users } from "./store/store";
+import { OrderBook } from "./services/order-book";
 
 await connectRedis();
 

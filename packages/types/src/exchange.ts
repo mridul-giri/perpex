@@ -1,6 +1,6 @@
 export type OrderType = "LIMIT" | "MARKET";
 export type OrderSide = "LONG" | "SHORT";
-export type OrderStatus = "Open" | "Filled" | "Partial" | "Cancelled";
+export type OrderStatus = "Open" | "Filled" | "PartiallyFilled" | "Cancelled";
 
 export interface User {
   collateral: Collateral;
@@ -68,20 +68,30 @@ export type StreamMessages = {
 }[];
 
 export interface Bids {
-  availableQuantity: number;
-  openOrders: openOrder[];
+  openOrders: OpenOrder[];
 }
 
 export interface Asks {
-  availableQuantity: number;
-  openOrders: openOrder[];
+  openOrders: OpenOrder[];
 }
 
-export interface openOrder {
+export interface OpenOrder {
   userId: string;
   orderId: string;
   quantity: number;
   filledQuantity: number;
+  createdAt: number;
+}
+
+export interface Fill {
+  makerUserId: string;
+  takerUserId: string;
+  makerOrderId: string;
+  takerOrderId: string;
+  market: string;
+  quantity: number;
+  price: number;
+  takerSide: OrderSide;
 }
 
 // export type Position = {

@@ -14,6 +14,9 @@ model User {
   password String
 
   orders Order[]
+
+  makerFills Fills[] @relation("maker")
+  takerFills Fills[] @relation("taker")
 }
 
 model Order {
@@ -30,9 +33,32 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  makerFills Fills[] @relation("makerOrder")
+  takerFills Fills[] @relation("takerOrder")
+
   user User @relation(fields: [userId], references: [id])
 
   market Market @relation(fields: [marketId], references: [id])
+}
+
+model Fills {
+  id           String @id @default(uuid())
+  makerUserId  String
+  takerUserId  String
+  makerOrderId String
+  takerOrderId String
+  marketId     String
+  price        Int
+  quantity     Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  makerUser  User   @relation("maker", fields: [makerUserId], references: [id])
+  takerUser  User   @relation("taker", fields: [takerUserId], references: [id])
+  makerOrder Order  @relation("makerOrder", fields: [makerOrderId], references: [id])
+  takerOrder Order  @relation("takerOrder", fields: [takerOrderId], references: [id])
+  market     Market @relation(fields: [marketId], references: [id])
 }
 
 model Market {
@@ -41,6 +67,7 @@ model Market {
   imageUrl   String
 
   orders Order[]
+  fills  Fills[]
 }
 
 enum OrderType {
@@ -56,6 +83,6 @@ enum OrderSide {
 enum OrderStatus {
   Open
   Filled
-  Partial
+  PartiallyFilled
   Cancelled
 }

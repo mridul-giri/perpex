@@ -14,7 +14,8 @@ export const createOrder = async (req: Request, res: Response) => {
 
   const correlationId = crypto.randomUUID();
   const payload: PayloadType = {
-    userId: req.user.id,
+    // userId: req.user.id,
+    userId: "u1",
     market: orderInput.market,
     type: orderInput.type,
     side: orderInput.side,
