@@ -4,25 +4,29 @@ import { orderSchema } from "@perpex/schemas";
 import { publishToStream } from "@perpex/redis";
 import { registerResolver } from "../services/listener";
 import { config } from "@perpex/config";
-
-const markPrice = 100;
+import { number } from "zod";
 
 export const createOrder = async (req: Request, res: Response) => {
   const orderInput = orderSchema.parse(req.body);
 
-  const price = orderInput.type === "LIMIT" ? orderInput.price : markPrice;
-
   const correlationId = crypto.randomUUID();
-  const payload: PayloadType = {
+  const basePayload = {
     // userId: req.user.id,
     userId: "u1",
     market: orderInput.market,
-    type: orderInput.type,
     side: orderInput.side,
     quantity: orderInput.quantity,
-    price,
     leverage: orderInput.leverage,
   };
+
+  const payload: PayloadType =
+    orderInput.type === "LIMIT"
+      ? { ...basePayload, type: "LIMIT", price: orderInput.price }
+      : {
+          ...basePayload,
+          type: "MARKET",
+          slippageTolerance: orderInput.slippageTolerance,
+        };
 
   const result: ResponseType = await new Promise(async (resolve, reject) => {
     registerResolver(correlationId, resolve, reject, config.RES_TIMEOUT);

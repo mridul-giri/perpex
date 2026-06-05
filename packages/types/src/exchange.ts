@@ -38,17 +38,27 @@ export interface Order {
   status: OrderStatus;
 }
 
-export interface PayloadType {
+export interface BasePayloadType {
   userId: string;
   messageType?: string;
   market: string;
-  type: OrderType;
   side: OrderSide;
   quantity: number;
-  price: number;
   leverage: number;
   correlationId?: string;
 }
+
+export interface LimitOrderPayload extends BasePayloadType {
+  type: "LIMIT";
+  price: number;
+}
+
+export interface MarketOrderPayload extends BasePayloadType {
+  type: "MARKET";
+  slippageTolerance: number;
+}
+
+export type PayloadType = LimitOrderPayload | MarketOrderPayload;
 
 export interface ResponseType {
   [key: string]: any;

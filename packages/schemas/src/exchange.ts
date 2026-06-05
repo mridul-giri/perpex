@@ -13,7 +13,7 @@ export const orderSchema = z.discriminatedUnion("type", [
     type: z.literal("MARKET"),
     side: z.enum(["LONG", "SHORT"]),
     market: z.string(),
-    price: z.null().optional(),
+    slippageTolerance: z.number().default(0.02),
     quantity: z.number().positive("quantity must be a positive number"),
     leverage: z.number().default(10),
   }),

@@ -1,8 +1,16 @@
-import type { Asks, Bids, Fill, PayloadType } from "@perpex/types";
+import type {
+  Asks,
+  Bids,
+  Fill,
+  LimitOrderPayload,
+  MarketOrderPayload,
+  PayloadType,
+} from "@perpex/types";
+import { EngineError } from "../utils/engine-error";
 
 export class MathchingEngine {
-  matchLong(
-    payload: PayloadType,
+  matchLimitLong(
+    payload: LimitOrderPayload,
     orderId: string,
     asks: Map<number, Asks>,
     asksPrices: number[],
@@ -25,7 +33,7 @@ export class MathchingEngine {
 
       const openOrder = askPriceData.openOrders[0];
       if (!openOrder || openOrder?.userId === payload.userId) {
-        break; // prevent from self trade
+        break; //TODO: need to change this
       }
 
       const filledQty = Math.min(orderQuantity, openOrder.quantity);
@@ -84,8 +92,8 @@ export class MathchingEngine {
     };
   }
 
-  matchShort(
-    payload: PayloadType,
+  matchLimitShort(
+    payload: LimitOrderPayload,
     bidsPrices: number[],
     bids: Map<number, Bids>,
     orderId: string,
@@ -166,4 +174,95 @@ export class MathchingEngine {
       status,
     };
   }
+
+  matchMarketLong(
+    payload: MarketOrderPayload,
+    orderId: string,
+    asksPrices: number[],
+    bidsPrices: number[],
+    asks: Map<number, Asks>,
+    bids: Map<number, Bids>,
+    lockedCollateral: number,
+    worstCasePrice: number,
+  ) {
+    let orderQuantity = payload.quantity;
+    let totalFilledValue = 0;
+    const side = payload.side === "LONG" ? asks : bids;
+    const sortedPrices = payload.side === "LONG" ? asksPrices : bidsPrices;
+
+    const fills: Fill[] = [];
+
+    while (orderQuantity > 0) {
+      const bestPrice = payload.side === "LONG" ? asksPrices[0] : bidsPrices[0];
+
+      if (payload.side === "LONG") {
+        if (!bestPrice || bestPrice > worstCasePrice) break;
+      } else {
+        if (!bestPrice || bestPrice < worstCasePrice) break;
+      }
+
+      const priceData =
+        payload.side === "LONG" ? asks.get(bestPrice) : bids.get(bestPrice);
+
+      if (!priceData || priceData.openOrders.length === 0) {
+        side.delete(bestPrice);
+        sortedPrices.splice(0, 1);
+        continue;
+      }
+
+      const openOrder = priceData.openOrders[0];
+      if (!openOrder || openOrder.userId === payload.userId) {
+        break; //TODO: need to change this
+      }
+
+      const filledQty = Math.min(orderQuantity, openOrder.quantity);
+
+      fills.push({
+        makerUserId: openOrder.userId,
+        takerUserId: payload.userId,
+        makerOrderId: openOrder.orderId,
+        takerOrderId: orderId,
+        market: payload.market,
+        quantity: filledQty,
+        price: bestPrice,
+        takerSide: payload.side,
+      });
+
+      totalFilledValue += bestPrice * filledQty;
+      openOrder.quantity -= filledQty;
+      openOrder.filledQuantity += filledQty;
+
+      if (openOrder.quantity <= 0) {
+        priceData.openOrders.splice(0, 1);
+      }
+
+      if (priceData.openOrders.length === 0) {
+        side.delete(bestPrice);
+        sortedPrices.splice(0, 1);
+      }
+
+      orderQuantity -= filledQty;
+    }
+    const filledQuantity = payload.quantity - orderQuantity;
+
+    let status = null;
+
+    if (orderQuantity === 0) {
+      status = "Filled";
+    } else {
+      status = "Cancelled";
+    }
+
+    const actualCollateralUsed = totalFilledValue / payload.leverage;
+    const surplus = lockedCollateral - actualCollateralUsed;
+
+    return {
+      fills,
+      remainingQuantity: orderQuantity,
+      totalFilledValue,
+      surplus,
+      status,
+    };
+  }
+  matchMarketShort() {}
 }

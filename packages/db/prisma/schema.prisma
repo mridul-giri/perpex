@@ -25,7 +25,7 @@ model Order {
   marketId       String
   type           OrderType
   side           OrderSide
-  price          Int
+  price          Int?
   quantity       Int
   filledQuantity Int
   status         OrderStatus

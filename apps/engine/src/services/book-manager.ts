@@ -15,36 +15,53 @@ export class BookManager {
   }
 
   placeIntoBids(
-    payload: PayloadType,
+    price: number,
     orderId: string,
+    userId: string,
     quantity: number,
     filledQuantity: number,
   ) {
-    this.placeIntoSide(this.bids, payload, orderId, quantity, filledQuantity);
+    this.placeIntoSide(
+      this.bids,
+      price,
+      userId,
+      orderId,
+      quantity,
+      filledQuantity,
+    );
     this.sortBids();
   }
 
   placeIntoAsks(
-    payload: PayloadType,
+    price: number,
     orderId: string,
+    userId: string,
     quantity: number,
     filledQuantity: number,
   ) {
-    this.placeIntoSide(this.asks, payload, orderId, quantity, filledQuantity);
+    this.placeIntoSide(
+      this.asks,
+      price,
+      userId,
+      orderId,
+      quantity,
+      filledQuantity,
+    );
     this.sortAsks();
   }
 
   private placeIntoSide(
     side: Map<number, Bids | Asks>,
-    payload: PayloadType,
+    price: number,
+    userId: string,
     orderId: string,
     quantity: number,
     filledQuantity: number,
   ) {
-    const existing = side.get(payload.price);
+    const existing = side.get(price);
 
     const newOrder = {
-      userId: payload.userId,
+      userId,
       orderId,
       quantity,
       filledQuantity,
@@ -52,7 +69,7 @@ export class BookManager {
     };
 
     if (!existing) {
-      side.set(payload.price, {
+      side.set(price, {
         openOrders: [newOrder],
       });
     } else {
@@ -69,25 +86,25 @@ export class BookManager {
   }
 
   addSeedData() {
-    this.bids.set(6, {
+    this.bids.set(95, {
       openOrders: [
         {
           userId: "5",
           orderId: "105",
-          quantity: 4,
+          quantity: 1,
           filledQuantity: 0,
           createdAt: Date.now(),
         },
         {
           userId: "6",
           orderId: "106",
-          quantity: 3,
+          quantity: 1,
           filledQuantity: 0,
           createdAt: Date.now(),
         },
       ],
     });
-    this.bids.set(9, {
+    this.bids.set(101, {
       openOrders: [
         {
           userId: "7",
@@ -99,65 +116,65 @@ export class BookManager {
         {
           userId: "10",
           orderId: "110",
-          quantity: 2,
+          quantity: 1,
           filledQuantity: 0,
           createdAt: Date.now(),
         },
       ],
     });
-    this.bids.set(7, {
+    this.bids.set(102, {
       openOrders: [
         {
           userId: "8",
           orderId: "108",
-          quantity: 2,
+          quantity: 1,
           filledQuantity: 0,
           createdAt: Date.now(),
         },
       ],
     });
-    this.asks.set(20, {
+    this.asks.set(101, {
       openOrders: [
         {
           userId: "1",
           orderId: "101",
-          quantity: 3,
+          quantity: 1,
           filledQuantity: 0,
           createdAt: Date.now(),
         },
-        {
-          userId: "2",
-          orderId: "102",
-          quantity: 3,
-          filledQuantity: 0,
-          createdAt: Date.now(),
-        },
+        // {
+        //   userId: "2",
+        //   orderId: "102",
+        //   quantity: 1,
+        //   filledQuantity: 0,
+        //   createdAt: Date.now(),
+        // },
       ],
     });
-    this.asks.set(10, {
+    this.asks.set(100, {
       openOrders: [
         {
-          userId: "3",
+          userId: "31",
           orderId: "103",
-          quantity: 5,
+          quantity: 1,
           filledQuantity: 0,
           createdAt: Date.now(),
         },
         {
           userId: "9",
           orderId: "109",
-          quantity: 4,
+          quantity: 1,
           filledQuantity: 0,
           createdAt: Date.now(),
         },
       ],
     });
-    this.asks.set(30, {
+    this.asks.set(104, {
       openOrders: [
         {
           userId: "4",
           orderId: "104",
-          quantity: 6,
+          quantity: 2,
           filledQuantity: 0,
           createdAt: Date.now(),
         },
