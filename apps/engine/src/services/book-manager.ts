@@ -92,7 +92,14 @@ export class BookManager {
         {
           userId: "7",
           orderId: "107",
-          quantity: 3,
+          quantity: 1,
+          filledQuantity: 0,
+          createdAt: Date.now(),
+        },
+        {
+          userId: "10",
+          orderId: "110",
+          quantity: 2,
           filledQuantity: 0,
           createdAt: Date.now(),
         },

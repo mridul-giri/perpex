@@ -18,6 +18,5 @@ export class UserService {
   releaseCollateral(user: User, surplus: number) {
     user.collateral.lockedBalance -= surplus;
     user.collateral.availableBalance += surplus;
-
   }
 }
