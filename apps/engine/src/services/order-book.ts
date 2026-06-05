@@ -48,25 +48,40 @@ export class OrderBook {
     const orderId = crypto.randomUUID();
     await this.publishOrderCreated(orderId, payload);
 
-    //TODO: Implement this again, this time without switch, try to optimize it even further.
-    switch (payload.side) {
-      case "LONG": {
-        return await this.handleLongLimit(
-          payload,
-          orderId,
-          user,
-          lockedCollateral,
-        );
-      }
-      case "SHORT": {
-        return await this.handleShortLimit(
-          payload,
-          orderId,
-          user,
-          lockedCollateral,
-        );
-      }
+    const result = this.matcher.matchLimitOrder(
+      payload,
+      orderId,
+      this.book.getAsks(),
+      this.book.getBids(),
+      this.book.asksPrices,
+      this.book.bidsPrices,
+      lockedCollateral,
+    );
+    console.log("limit result:", result);
+
+    for (const fill of result.fills) {
+      await this.publishFill(fill);
     }
+
+    this.userService.releaseCollateral(user, result.surplus);
+
+    if (result.remainingQuantity > 0) {
+      const filledOrder = payload.quantity - result.remainingQuantity;
+
+      this.book.placeIntoSide(
+        payload.side,
+        payload.price,
+        orderId,
+        payload.userId,
+        result.remainingQuantity,
+        filledOrder,
+      );
+    }
+
+    console.log("limit asks", this.book.getAsks());
+    console.log("limit bids", this.book.getBids());
+
+    this.publishOrderUpdated(orderId, result.status);
   }
 
   private async handleMarketOrder(payload: MarketOrderPayload) {
@@ -105,32 +120,7 @@ export class OrderBook {
     const orderId = crypto.randomUUID();
     await this.publishOrderCreated(orderId, payload);
 
-    return await this.handleLongMarket(
-      payload,
-      orderId,
-      user,
-      lockedCollateral,
-      worstCasePrice,
-    );
-
-    //TODO: Implement this again, this time without switch, try to optimize it even further.
-    // switch (payload.side) {
-    //   case "LONG": {
-    //   }
-    //   case "SHORT": {
-    //     return await this.handleShortMarket();
-    //   }
-    // }
-  }
-
-  private async handleLongMarket(
-    payload: MarketOrderPayload,
-    orderId: string,
-    user: User,
-    lockedCollateral: number,
-    worstCasePrice: number,
-  ) {
-    const result = this.matcher.matchMarketLong(
+    const result = this.matcher.matchMarketOrder(
       payload,
       orderId,
       this.book.asksPrices,
@@ -140,6 +130,7 @@ export class OrderBook {
       lockedCollateral,
       worstCasePrice,
     );
+    console.log("market result:", result);
 
     for (const fill of result.fills) {
       await this.publishFill(fill);
@@ -149,87 +140,6 @@ export class OrderBook {
 
     console.log("market asks", this.book.getAsks());
     console.log("market bids", this.book.getBids());
-
-    this.publishOrderUpdated(orderId, result.status);
-  }
-  private async handleShortMarket() {}
-
-  private async handleLongLimit(
-    payload: LimitOrderPayload,
-    orderId: string,
-    user: User,
-    lockedCollateral: number,
-  ) {
-    const result = this.matcher.matchLimitLong(
-      payload,
-      orderId,
-      this.book.getAsks(),
-      this.book.asksPrices,
-      lockedCollateral,
-    );
-
-    console.log("results from handleLongLimit", result);
-
-    for (const fill of result.fills) {
-      await this.publishFill(fill);
-    }
-
-    this.userService.releaseCollateral(user, result.surplus);
-
-    if (result.remainingQuantity > 0) {
-      const filledOrder = payload.quantity - result.remainingQuantity;
-
-      this.book.placeIntoBids(
-        payload.price,
-        orderId,
-        payload.userId,
-        result.remainingQuantity,
-        filledOrder,
-      );
-    }
-
-    console.log("limit asks", this.book.getAsks());
-    console.log("limit bids", this.book.getBids());
-
-    this.publishOrderUpdated(orderId, result.status);
-  }
-
-  private async handleShortLimit(
-    payload: LimitOrderPayload,
-    orderId: string,
-    user: User,
-    lockedCollateral: number,
-  ) {
-    const result = this.matcher.matchLimitShort(
-      payload,
-      this.book.bidsPrices,
-      this.book.getBids(),
-      orderId,
-      lockedCollateral,
-    );
-
-    console.log("result from handleShortLimit", result);
-
-    for (const fill of result.fills) {
-      await this.publishFill(fill);
-    }
-
-    this.userService.releaseCollateral(user, result.surplus);
-
-    if (result.remainingQuantity > 0) {
-      const filledOrder = payload.quantity - result.remainingQuantity;
-
-      this.book.placeIntoAsks(
-        payload.price,
-        orderId,
-        payload.userId,
-        result.remainingQuantity,
-        filledOrder,
-      );
-    }
-
-    console.log("asks", this.book.getAsks());
-    console.log("bids", this.book.getBids());
 
     this.publishOrderUpdated(orderId, result.status);
   }

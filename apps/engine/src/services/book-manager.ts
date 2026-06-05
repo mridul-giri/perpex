@@ -1,4 +1,4 @@
-import type { Asks, Bids, PayloadType } from "@perpex/types";
+import type { Asks, Bids, OrderSide, PayloadType } from "@perpex/types";
 
 export class BookManager {
   private bids: Map<number, Bids> = new Map();
@@ -14,51 +14,17 @@ export class BookManager {
     return this.bids;
   }
 
-  placeIntoBids(
-    price: number,
-    orderId: string,
-    userId: string,
-    quantity: number,
-    filledQuantity: number,
-  ) {
-    this.placeIntoSide(
-      this.bids,
-      price,
-      userId,
-      orderId,
-      quantity,
-      filledQuantity,
-    );
-    this.sortBids();
-  }
-
-  placeIntoAsks(
-    price: number,
-    orderId: string,
-    userId: string,
-    quantity: number,
-    filledQuantity: number,
-  ) {
-    this.placeIntoSide(
-      this.asks,
-      price,
-      userId,
-      orderId,
-      quantity,
-      filledQuantity,
-    );
-    this.sortAsks();
-  }
-
-  private placeIntoSide(
-    side: Map<number, Bids | Asks>,
+  placeIntoSide(
+    side: OrderSide,
     price: number,
     userId: string,
     orderId: string,
     quantity: number,
     filledQuantity: number,
   ) {
-    const existing = side.get(price);
+    const existing =
+      side === "LONG" ? this.bids.get(price) : this.asks.get(price);
+    const updateSide = side === "LONG" ? this.bids : this.asks;
 
     const newOrder = {
       userId,
@@ -69,12 +35,14 @@ export class BookManager {
     };
 
     if (!existing) {
-      side.set(price, {
+      updateSide.set(price, {
         openOrders: [newOrder],
       });
     } else {
       existing.openOrders.push(newOrder);
     }
+
+    side === "LONG" ? this.sortBids() : this.sortAsks();
   }
 
   private sortBids() {
