@@ -4,7 +4,7 @@ export type OrderStatus = "Open" | "Filled" | "PartiallyFilled" | "Cancelled";
 
 export interface User {
   collateral: Collateral;
-  orders?: Order[];
+  positions: Position[];
 }
 
 export interface Collateral {
@@ -12,18 +12,18 @@ export interface Collateral {
   lockedBalance: number;
 }
 
+//TODO: this should store in db
 export interface Position {
   userId: string;
-  market: string;
-  type: OrderType;
+  market: string; //TODO: "change it to marketId and store market id here"
+  positionType: OrderType;
   side: OrderSide;
   quantity: number;
-  entryPrice: number;
-  equity: number;
-  marginPrice: number;
-  liquidationPrice: number;
   averagePrice: number;
-  status: OrderStatus;
+  liquidationPrice: number;
+  margin: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface Order {
@@ -38,27 +38,18 @@ export interface Order {
   status: OrderStatus;
 }
 
-export interface BasePayloadType {
+export interface PayloadType {
   userId: string;
   messageType?: string;
   market: string;
   side: OrderSide;
   quantity: number;
   leverage: number;
-  correlationId?: string;
+  correlationId: string | undefined;
+  type: OrderType;
+  price: number | undefined;
+  slippageTolerance: number | undefined;
 }
-
-export interface LimitOrderPayload extends BasePayloadType {
-  type: "LIMIT";
-  price: number;
-}
-
-export interface MarketOrderPayload extends BasePayloadType {
-  type: "MARKET";
-  slippageTolerance: number;
-}
-
-export type PayloadType = LimitOrderPayload | MarketOrderPayload;
 
 export interface ResponseType {
   [key: string]: any;

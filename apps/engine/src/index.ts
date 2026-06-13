@@ -18,8 +18,8 @@ const engineManager = new EngineManager();
 const storeUser = (payload: any) => {
   Users.set(payload.userId, {
     collateral: { availableBalance: 5000, lockedBalance: 0 },
+    positions: [],
   });
-  console.log("user store", Users);
 };
 
 while (true) {

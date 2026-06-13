@@ -17,8 +17,8 @@ export class BookManager {
   placeIntoSide(
     side: OrderSide,
     price: number,
-    userId: string,
     orderId: string,
+    userId: string,
     quantity: number,
     filledQuantity: number,
   ) {
@@ -72,7 +72,7 @@ export class BookManager {
         },
       ],
     });
-    this.bids.set(101, {
+    this.bids.set(100, {
       openOrders: [
         {
           userId: "7",
@@ -84,23 +84,23 @@ export class BookManager {
         {
           userId: "10",
           orderId: "110",
-          quantity: 1,
+          quantity: 2,
           filledQuantity: 0,
           createdAt: Date.now(),
         },
       ],
     });
-    this.bids.set(102, {
-      openOrders: [
-        {
-          userId: "8",
-          orderId: "108",
-          quantity: 1,
-          filledQuantity: 0,
-          createdAt: Date.now(),
-        },
-      ],
-    });
+    // this.bids.set(102, {
+    //   openOrders: [
+    //     {
+    //       userId: "8",
+    //       orderId: "108",
+    //       quantity: 1,
+    //       filledQuantity: 0,
+    //       createdAt: Date.now(),
+    //     },
+    //   ],
+    // });
     this.asks.set(101, {
       openOrders: [
         {
@@ -124,7 +124,7 @@ export class BookManager {
         {
           userId: "31",
           orderId: "103",
-          quantity: 1,
+          quantity: 2,
           filledQuantity: 0,
           createdAt: Date.now(),
         },

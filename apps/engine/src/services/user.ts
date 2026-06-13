@@ -1,4 +1,4 @@
-import type { User } from "@perpex/types";
+import type { Position, User } from "@perpex/types";
 import { Users } from "../store/store";
 import { EngineError } from "../utils/engine-error";
 
@@ -18,5 +18,17 @@ export class UserService {
   releaseCollateral(user: User, surplus: number) {
     user.collateral.lockedBalance -= surplus;
     user.collateral.availableBalance += surplus;
+  }
+
+  addPnl(user: User, pnl: number) {
+    user.collateral.availableBalance += pnl;
+  }
+
+  deleteOpenPosition(user: User, userId: string, position: Position) {
+    const updatedPosition = user.positions.filter(
+      (position) => userId != position.userId,
+    );
+
+    user.positions.push(...updatedPosition);
   }
 }

@@ -1,15 +1,9 @@
-import type {
-  Asks,
-  Bids,
-  Fill,
-  LimitOrderPayload,
-  MarketOrderPayload,
-  PayloadType,
-} from "@perpex/types";
+import type { Asks, Bids, Fill, PayloadType } from "@perpex/types";
 
 export class MathchingEngine {
   matchLimitOrder(
-    payload: LimitOrderPayload,
+    payload: PayloadType,
+    entryPrice: number,
     orderId: string,
     asks: Map<number, Asks>,
     bids: Map<number, Bids>,
@@ -29,8 +23,8 @@ export class MathchingEngine {
 
       if (!bestPrice) break;
 
-      if (payload.side === "LONG" && bestPrice > payload.price) break;
-      if (payload.side === "SHORT" && bestPrice < payload.price) break;
+      if (payload.side === "LONG" && bestPrice > entryPrice) break;
+      if (payload.side === "SHORT" && bestPrice < entryPrice) break;
 
       const priceData = oppositeSide.get(bestPrice);
 
@@ -87,22 +81,24 @@ export class MathchingEngine {
     }
 
     const actualCollateralUsed = totalFilledValue / payload.leverage;
-    const remainingCollateral =
-      (payload.price * orderQuantity) / payload.leverage;
+    const remainingCollateral = (entryPrice * orderQuantity) / payload.leverage;
     const surplus =
       lockedCollateral - actualCollateralUsed - remainingCollateral;
+
+    console.log("asks", asks.get(100));
 
     return {
       fills,
       remainingQuantity: orderQuantity,
       totalFilledValue,
       surplus,
+      actualCollateralUsed,
       status,
     };
   }
 
   matchMarketOrder(
-    payload: MarketOrderPayload,
+    payload: PayloadType,
     orderId: string,
     asksPrices: number[],
     bidsPrices: number[],
