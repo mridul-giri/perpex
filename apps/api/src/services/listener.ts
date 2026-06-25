@@ -5,7 +5,7 @@ import type { ResponseType } from "@perpex/types";
 export type ResolverType = {
   resolve: Function;
   reject: Function;
-  timer: ReturnType<typeof setTimeout>;
+  timer: NodeJS.Timeout;
 };
 
 export const pendingResolver = new Map<string, ResolverType>();

@@ -71,13 +71,13 @@ export class PositionManager {
     fill: Fill,
     actualCollateralUsed: number,
     payload: PayloadType,
+    remainingPositionQty: number,
     closeQty: number,
     releaseCollateral: (user: User, surplus: number) => void,
     addPnl: (user: User, pnl: number) => void,
   ) {
     const averagePrice = await this.calculateAvgPrice(position, fill);
     const newMargin = position.margin - actualCollateralUsed;
-    const newQuantity = position.quantity - closeQty;
 
     const liquidationPrice = await this.calculateLiquidationPrice(
       payload.side,
@@ -93,7 +93,7 @@ export class PositionManager {
     position.liquidationPrice = liquidationPrice;
     position.averagePrice = averagePrice;
     position.margin = newMargin;
-    position.quantity = newQuantity;
+    position.quantity = remainingPositionQty;
   }
 
   async closePosition(
@@ -114,9 +114,9 @@ export class PositionManager {
     const pnl = await this.calculatePnl(fill, closeQty, position);
     console.log("pnl in close condition", pnl);
 
-    const surplus = position.margin - actualCollateralUsed;
+    const newMargin = position.margin - actualCollateralUsed;
 
-    releaseCollateral(user, surplus);
+    releaseCollateral(user, newMargin);
     addPnl(user, pnl);
     deleteOpenPosition(user, userId, position);
 

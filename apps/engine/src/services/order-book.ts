@@ -41,7 +41,11 @@ export class OrderBook {
 
     const { price: entryPrice, quantity, leverage } = payload;
 
-    const lockedCollateral = (entryPrice * quantity) / leverage;
+    const lockedCollateral = await this.calculateCollateral(
+      entryPrice,
+      quantity,
+      leverage,
+    );
 
     this.userService.lockCollateral(user, lockedCollateral);
 
@@ -65,73 +69,13 @@ export class OrderBook {
     for (const fill of result.fills) {
       await this.publishFill(fill);
 
-      // position logic
-      const position = await this.positionManager.getPosition(user, payload);
-
-      if (!position) {
-        await this.positionManager.createPosition(
-          user,
-          payload,
-          fill,
-          leverage,
-          lockedCollateral,
-        );
-        console.log("[New-Position]", user.positions);
-      } else {
-        if (payload.side === position.side) {
-          await this.positionManager.updatePosition(
-            position,
-            payload,
-            fill,
-            result.actualCollateralUsed,
-          );
-
-          console.log("[Position-if-both-side-same]", user.positions);
-        } else {
-          const closeQty = Math.min(fill.quantity, position.quantity);
-          const remainingFillQty = fill.quantity - closeQty;
-          const remainingPositionQty = position.quantity - closeQty;
-
-          console.log(
-            `close qty: ${closeQty}, remaining fill qty: ${remainingFillQty}, reamaining postn qty: ${remainingPositionQty}`,
-          );
-
-          // close full condition
-          if (remainingFillQty === 0 && remainingPositionQty === 0) {
-            this.positionManager.closePosition(
-              fill,
-              position,
-              closeQty,
-              result.actualCollateralUsed,
-              user,
-              this.userService.releaseCollateral,
-              this.userService.addPnl,
-              this.userService.deleteOpenPosition,
-              payload.userId,
-            );
-          }
-
-          // partially close position
-          if (remainingPositionQty > 0) {
-            this.positionManager.partiallyClosePosition(
-              user,
-              position,
-              fill,
-              result.actualCollateralUsed,
-              payload,
-              closeQty,
-              this.userService.releaseCollateral,
-              this.userService.addPnl,
-            );
-          }
-
-          if (remainingFillQty > 0) {
-            console.log(
-              "first close some position and then open opposite position",
-            );
-          }
-        }
-      }
+      await this.handlePosition(
+        user,
+        payload,
+        fill,
+        lockedCollateral,
+        result.actualCollateralUsed,
+      );
     }
 
     this.userService.releaseCollateral(user, result.surplus);
@@ -158,7 +102,6 @@ export class OrderBook {
   }
 
   private async handleMarketOrder(payload: PayloadType) {
-    //handle slippage
     const user = this.userService.getUser(payload.userId);
     if (!user) throw new EngineError(404, "User not found");
 
@@ -183,8 +126,11 @@ export class OrderBook {
         ? bestPrice * (1 + slippageTolerance)
         : bestPrice * (1 - slippageTolerance);
 
-    const lockedCollateral =
-      (worstCasePrice * payload.quantity) / payload.leverage;
+    const lockedCollateral = await this.calculateCollateral(
+      worstCasePrice,
+      payload.quantity,
+      payload.leverage,
+    );
 
     console.log("worst case", worstCasePrice);
     console.log("locked amount", lockedCollateral);
@@ -244,6 +190,91 @@ export class OrderBook {
       ...order,
       messageType: "order-created",
     });
+  }
+
+  private async handlePosition(
+    user: User,
+    payload: PayloadType,
+    fill: Fill,
+    lockedCollateral: number,
+    actualCollateralUsed: number,
+  ) {
+    const position = await this.positionManager.getPosition(user, payload);
+
+    if (!position) {
+      await this.positionManager.createPosition(
+        user,
+        payload,
+        fill,
+        payload.leverage,
+        lockedCollateral,
+      );
+      console.log("[New-Position]", user.positions);
+    } else {
+      if (payload.side === position.side) {
+        await this.positionManager.updatePosition(
+          position,
+          payload,
+          fill,
+          actualCollateralUsed,
+        );
+
+        console.log("[Position-if-both-side-same]", user.positions);
+      } else {
+        const closeQty = Math.min(fill.quantity, position.quantity);
+        const remainingFillQty = fill.quantity - closeQty;
+        const remainingPositionQty = position.quantity - closeQty;
+
+        console.log(
+          `close qty: ${closeQty}, remaining fill qty: ${remainingFillQty}, reamaining postn qty: ${remainingPositionQty}`,
+        );
+
+        // close full condition
+        if (remainingFillQty === 0 && remainingPositionQty === 0) {
+          this.positionManager.closePosition(
+            fill,
+            position,
+            closeQty,
+            actualCollateralUsed,
+            user,
+            this.userService.releaseCollateral,
+            this.userService.addPnl,
+            this.userService.deleteOpenPosition,
+            payload.userId,
+          );
+        }
+
+        // partially close position
+        if (remainingPositionQty > 0) {
+          this.positionManager.partiallyClosePosition(
+            user,
+            position,
+            fill,
+            actualCollateralUsed,
+            payload,
+            remainingPositionQty,
+            closeQty,
+            this.userService.releaseCollateral,
+            this.userService.addPnl,
+          );
+        }
+
+        // TODO: Complete this end to end
+        if (remainingFillQty > 0) {
+          console.log(
+            "first close some position and then open opposite position",
+          );
+        }
+      }
+    }
+  }
+
+  private async calculateCollateral(
+    price: number,
+    quantity: number,
+    leverage: number,
+  ) {
+    return (price * quantity) / leverage;
   }
 
   private async publishOrderUpdated(orderId: string, status: string) {
