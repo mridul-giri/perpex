@@ -19,7 +19,7 @@ export const createOrder = async (req: Request, res: Response) => {
     leverage: orderInput.leverage,
   };
 
-  const payload: PayloadType =
+  const payload =
     orderInput.type === "LIMIT"
       ? { ...basePayload, type: "LIMIT", price: orderInput.price }
       : {

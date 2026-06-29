@@ -6,7 +6,7 @@ import { PositionManager } from "./position-manager";
 
 export class EngineManager {
   private markets = new Map<string, Engine>();
-  //TODO: this could be wrong creating single instance and passing that instance across all the markets, will comeback after watching multithreading video.
+
   private userService = new UserService();
   private matcher = new MathchingEngine();
   private positionManager = new PositionManager();
