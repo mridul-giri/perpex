@@ -17,6 +17,10 @@ model User {
 
   makerFills Fills[] @relation("maker")
   takerFills Fills[] @relation("taker")
+
+  balance      Balance?
+  positions    Position[]
+  liquidations Liquidation[]
 }
 
 model Order {
@@ -25,9 +29,9 @@ model Order {
   marketId       String
   type           OrderType
   side           OrderSide
-  price          Int?
-  quantity       Int
-  filledQuantity Int
+  price          String?
+  quantity       String
+  filledQuantity String
   status         OrderStatus
 
   createdAt DateTime @default(now())
@@ -48,8 +52,8 @@ model Fills {
   makerOrderId String
   takerOrderId String
   marketId     String
-  price        Int
-  quantity     Int
+  price        String
+  quantity     String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -62,12 +66,58 @@ model Fills {
 }
 
 model Market {
-  id         String @id @default(uuid())
-  marketSlug String @unique
-  imageUrl   String
+  id         String  @id @default(uuid())
+  marketSlug String  @unique
+  imageUrl   String?
 
   orders Order[]
   fills  Fills[]
+
+  positions    Position[]
+  liquidations Liquidation[]
+}
+
+model Balance {
+  id        String   @id @default(uuid())
+  userId    String
+  available String
+  locked    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId])
+}
+
+model Position {
+  id               String    @id @default(uuid())
+  userId           String
+  marketId         String
+  side             OrderSide
+  quantity         String
+  averagePrice     String
+  liquidationPrice String
+  margin           String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id])
+  market           Market    @relation(fields: [marketId], references: [id])
+
+  @@index([userId, marketId])
+}
+
+model Liquidation {
+  id               String   @id @default(uuid())
+  userId           String
+  marketId         String
+  quantity         String
+  bankruptcyPrice  String
+  liquidationPrice String
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id])
+  market           Market   @relation(fields: [marketId], references: [id])
+
+  @@index([userId])
 }
 
 enum OrderType {

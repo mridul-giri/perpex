@@ -1,12 +1,13 @@
-import type { Fill, PayloadType, Position, User } from "@perpex/types";
-import { EngineError } from "../utils/engine-error";
-import { UserService } from "./user";
 import { publishToStream } from "@perpex/redis";
 import { config } from "@perpex/config";
+import { EngineError } from "../utils/engine-error";
+import { UserService } from "./user";
 import { MathchingEngine } from "./matching-engine";
 import { BookManager } from "./book-manager";
 import { PositionManager } from "./position-manager";
-import { maintenanceMarginRate, totalSlippageTolerance } from "../store/store";
+import { SCALE, toBigInt, toString } from "../utils/conversion";
+import { totalSlippageTolerance } from "../store/store";
+import type { EngineFill, EnginePayload, EngineUser } from "@perpex/types";
 
 export class OrderBook {
   private book = new BookManager();
@@ -17,7 +18,7 @@ export class OrderBook {
     private positionManager: PositionManager,
   ) {}
 
-  async addOrder(payload: PayloadType) {
+  async addOrder(payload: EnginePayload) {
     switch (payload.type) {
       case "LIMIT": {
         return this.handleLimitOrder(payload);
@@ -28,7 +29,7 @@ export class OrderBook {
     }
   }
 
-  private async handleLimitOrder(payload: PayloadType) {
+  private async handleLimitOrder(payload: EnginePayload) {
     const user = this.userService.getUser(payload.userId);
     if (!user) throw new EngineError(404, "User not found");
 
@@ -82,7 +83,7 @@ export class OrderBook {
 
     console.log("After-release-outer", user.collateral);
 
-    if (result.remainingQuantity > 0) {
+    if (result.remainingQuantity > 0n) {
       const filledOrder = payload.quantity - result.remainingQuantity;
 
       this.book.placeIntoSide(
@@ -99,15 +100,22 @@ export class OrderBook {
     console.log("[Limit-Bids]", this.book.getBids());
 
     this.publishOrderUpdated(orderId, result.status);
+
+    return {
+      orderId,
+      status: result.status,
+      price: entryPrice !== undefined ? toString(entryPrice) : undefined,
+      quantity: toString(payload.quantity),
+      filledQuantity: toString(payload.quantity - result.remainingQuantity),
+    };
   }
 
-  private async handleMarketOrder(payload: PayloadType) {
+  private async handleMarketOrder(payload: EnginePayload) {
     const user = this.userService.getUser(payload.userId);
     if (!user) throw new EngineError(404, "User not found");
 
-    if (payload.leverage <= 0) {
+    if (payload.leverage <= 0)
       throw new EngineError(400, "Leverage must be greater than zero");
-    }
 
     const bestPrice =
       payload.side === "LONG"
@@ -121,10 +129,11 @@ export class OrderBook {
     const slippageTolerance =
       payload.slippageTolerance || totalSlippageTolerance;
 
+    const slippage = toBigInt(String(slippageTolerance));
     const worstCasePrice =
       payload.side === "LONG"
-        ? bestPrice * (1 + slippageTolerance)
-        : bestPrice * (1 - slippageTolerance);
+        ? (bestPrice * (SCALE + slippage)) / SCALE
+        : (bestPrice * (SCALE - slippage)) / SCALE;
 
     const lockedCollateral = await this.calculateCollateral(
       worstCasePrice,
@@ -162,24 +171,31 @@ export class OrderBook {
     console.log("market bids", this.book.getBids());
 
     this.publishOrderUpdated(orderId, result.status);
+
+    return {
+      orderId,
+      status: result.status,
+      quantity: toString(payload.quantity),
+      filledQuantity: toString(payload.quantity - result.remainingQuantity),
+    };
   }
 
-  private async publishOrderCreated(orderId: any, payload: PayloadType) {
+  private async publishOrderCreated(orderId: string, payload: EnginePayload) {
     const baseOrder = {
       orderId,
       userId: payload.userId,
       market: payload.market,
       side: payload.side,
-      quantity: payload.quantity,
-      filledQuantity: 0,
+      quantity: toString(payload.quantity),
+      filledQuantity: "0",
       status: "Open",
     };
     const order =
-      payload.type === "LIMIT"
+      payload.type === "LIMIT" && payload.price !== undefined
         ? {
             ...baseOrder,
             type: "LIMIT",
-            price: payload.price,
+            price: toString(payload.price),
           }
         : {
             ...baseOrder,
@@ -193,11 +209,11 @@ export class OrderBook {
   }
 
   private async handlePosition(
-    user: User,
-    payload: PayloadType,
-    fill: Fill,
-    lockedCollateral: number,
-    actualCollateralUsed: number,
+    user: EngineUser,
+    payload: EnginePayload,
+    fill: EngineFill,
+    lockedCollateral: bigint,
+    actualCollateralUsed: bigint,
   ) {
     const position = await this.positionManager.getPosition(user, payload);
 
@@ -221,7 +237,8 @@ export class OrderBook {
 
         console.log("[Position-if-both-side-same]", user.positions);
       } else {
-        const closeQty = Math.min(fill.quantity, position.quantity);
+        const closeQty =
+          fill.quantity < position.quantity ? fill.quantity : position.quantity;
         const remainingFillQty = fill.quantity - closeQty;
         const remainingPositionQty = position.quantity - closeQty;
 
@@ -229,8 +246,7 @@ export class OrderBook {
           `close qty: ${closeQty}, remaining fill qty: ${remainingFillQty}, reamaining postn qty: ${remainingPositionQty}`,
         );
 
-        // close full condition
-        if (remainingFillQty === 0 && remainingPositionQty === 0) {
+        if (remainingFillQty === 0n && remainingPositionQty === 0n) {
           this.positionManager.closePosition(
             fill,
             position,
@@ -244,8 +260,7 @@ export class OrderBook {
           );
         }
 
-        // partially close position
-        if (remainingPositionQty > 0) {
+        if (remainingPositionQty > 0n) {
           this.positionManager.partiallyClosePosition(
             user,
             position,
@@ -260,7 +275,7 @@ export class OrderBook {
         }
 
         // TODO: Complete this end to end
-        if (remainingFillQty > 0) {
+        if (remainingFillQty > 0n) {
           console.log(
             "first close some position and then open opposite position",
           );
@@ -270,11 +285,11 @@ export class OrderBook {
   }
 
   private async calculateCollateral(
-    price: number,
-    quantity: number,
+    price: bigint,
+    quantity: bigint,
     leverage: number,
   ) {
-    return (price * quantity) / leverage;
+    return (price * quantity) / BigInt(leverage);
   }
 
   private async publishOrderUpdated(orderId: string, status: string) {
@@ -285,9 +300,11 @@ export class OrderBook {
     });
   }
 
-  private async publishFill(fill: Fill) {
+  private async publishFill(fill: EngineFill) {
     await publishToStream(config.ORDERS_ACK, {
       ...fill,
+      quantity: toString(fill.quantity),
+      price: toString(fill.price),
       messageType: "fill-created",
     });
   }

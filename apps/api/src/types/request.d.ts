@@ -1,4 +1,4 @@
-import type { UserPayload } from "./auth";
+import type { UserPayload } from "@perpex/types";
 
 declare global {
   namespace Express {

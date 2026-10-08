@@ -1,10 +1,12 @@
-import type { Asks, Bids, OrderSide, PayloadType } from "@perpex/types";
+import type { OrderSide } from "@perpex/types";
+import type { EngineSide } from "@perpex/types";
+import { toBigInt } from "../utils/conversion";
 
 export class BookManager {
-  private bids: Map<number, Bids> = new Map();
-  private asks: Map<number, Asks> = new Map();
-  bidsPrices: number[] = [];
-  asksPrices: number[] = [];
+  private bids: Map<bigint, EngineSide> = new Map();
+  private asks: Map<bigint, EngineSide> = new Map();
+  bidsPrices: bigint[] = [];
+  asksPrices: bigint[] = [];
 
   getAsks() {
     return this.asks;
@@ -16,11 +18,11 @@ export class BookManager {
 
   placeIntoSide(
     side: OrderSide,
-    price: number,
+    price: bigint,
     orderId: string,
     userId: string,
-    quantity: number,
-    filledQuantity: number,
+    quantity: bigint,
+    filledQuantity: bigint,
   ) {
     const existing =
       side === "LONG" ? this.bids.get(price) : this.asks.get(price);
@@ -46,104 +48,90 @@ export class BookManager {
   }
 
   private sortBids() {
-    this.bidsPrices = [...this.bids.keys()].sort((a, b) => b - a);
+    this.bidsPrices = [...this.bids.keys()].sort((a, b) =>
+      a < b ? 1 : a > b ? -1 : 0,
+    );
   }
 
   private sortAsks() {
-    this.asksPrices = [...this.asks.keys()].sort((a, b) => a - b);
+    this.asksPrices = [...this.asks.keys()].sort((a, b) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    );
   }
 
   addSeedData() {
-    this.bids.set(95, {
+    this.bids.set(toBigInt("95"), {
       openOrders: [
         {
           userId: "5",
           orderId: "105",
-          quantity: 1,
-          filledQuantity: 0,
+          quantity: toBigInt("1"),
+          filledQuantity: 0n,
           createdAt: Date.now(),
         },
         {
           userId: "6",
           orderId: "106",
-          quantity: 1,
-          filledQuantity: 0,
+          quantity: toBigInt("1"),
+          filledQuantity: 0n,
           createdAt: Date.now(),
         },
       ],
     });
-    this.bids.set(100, {
+    this.bids.set(toBigInt("100"), {
       openOrders: [
         {
           userId: "7",
           orderId: "107",
-          quantity: 1,
-          filledQuantity: 0,
+          quantity: toBigInt("1"),
+          filledQuantity: 0n,
           createdAt: Date.now(),
         },
         {
           userId: "10",
           orderId: "110",
-          quantity: 2,
-          filledQuantity: 0,
+          quantity: toBigInt("2"),
+          filledQuantity: 0n,
           createdAt: Date.now(),
         },
       ],
     });
-    // this.bids.set(102, {
-    //   openOrders: [
-    //     {
-    //       userId: "8",
-    //       orderId: "108",
-    //       quantity: 1,
-    //       filledQuantity: 0,
-    //       createdAt: Date.now(),
-    //     },
-    //   ],
-    // });
-    this.asks.set(101, {
+    this.asks.set(toBigInt("101"), {
       openOrders: [
         {
           userId: "1",
           orderId: "101",
-          quantity: 1,
-          filledQuantity: 0,
+          quantity: toBigInt("1"),
+          filledQuantity: 0n,
           createdAt: Date.now(),
         },
-        // {
-        //   userId: "2",
-        //   orderId: "102",
-        //   quantity: 1,
-        //   filledQuantity: 0,
-        //   createdAt: Date.now(),
-        // },
       ],
     });
-    this.asks.set(100, {
+    this.asks.set(toBigInt("100"), {
       openOrders: [
         {
           userId: "31",
           orderId: "103",
-          quantity: 2,
-          filledQuantity: 0,
+          quantity: toBigInt("2"),
+          filledQuantity: 0n,
           createdAt: Date.now(),
         },
         {
           userId: "9",
           orderId: "109",
-          quantity: 1,
-          filledQuantity: 0,
+          quantity: toBigInt("1"),
+          filledQuantity: 0n,
           createdAt: Date.now(),
         },
       ],
     });
-    this.asks.set(104, {
+    this.asks.set(toBigInt("104"), {
       openOrders: [
         {
           userId: "4",
           orderId: "104",
-          quantity: 2,
-          filledQuantity: 0,
+          quantity: toBigInt("2"),
+          filledQuantity: 0n,
           createdAt: Date.now(),
         },
       ],

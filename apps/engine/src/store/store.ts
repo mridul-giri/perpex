@@ -1,6 +1,7 @@
-import type { User } from "@perpex/types";
+import { toBigInt } from "../utils/conversion";
+import type { EngineUser } from "@perpex/types";
 
-export const Users = new Map<string, User>();
+export const Users = new Map<string, EngineUser>();
 export const MarketPrice = 100;
 
 export const maintenanceMarginRate = 0.005;
@@ -8,6 +9,6 @@ export const maintenanceMarginRate = 0.005;
 export const totalSlippageTolerance = 0.02;
 
 Users.set("u1", {
-  collateral: { availableBalance: 100, lockedBalance: 0 },
+  collateral: { availableBalance: toBigInt("100"), lockedBalance: 0n },
   positions: [],
 });

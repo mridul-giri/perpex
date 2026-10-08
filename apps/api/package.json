@@ -4,8 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --hot run src/index.ts",
-    "start": "bun run src/index.ts"
+    "dev": "bun --env-file=../../.env --hot run src/index.ts",
+    "start": "bun --env-file=../../.env run src/index.ts"
   },
   "devDependencies": {
     "@perpex/config": "workspace:*",

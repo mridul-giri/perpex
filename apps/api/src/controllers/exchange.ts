@@ -1,43 +1,73 @@
 import type { Request, Response } from "express";
-import type { PayloadType, ResponseType } from "@perpex/types";
-import { orderSchema } from "@perpex/schemas";
-import { publishToStream } from "@perpex/redis";
-import { registerResolver } from "../services/listener";
-import { config } from "@perpex/config";
-import { number } from "zod";
+import { onrampSchema, orderSchema, withdrawSchema } from "@perpex/schemas";
+import { requestEngine } from "../utils/request-engine";
 
 export const createOrder = async (req: Request, res: Response) => {
   const orderInput = orderSchema.parse(req.body);
 
-  const correlationId = crypto.randomUUID();
   const basePayload = {
-    // userId: req.user.id,
-    userId: "u1",
+    userId: req.user.id,
     market: orderInput.market,
     side: orderInput.side,
     quantity: orderInput.quantity,
     leverage: orderInput.leverage,
   };
 
-  const payload =
+  const command =
     orderInput.type === "LIMIT"
-      ? { ...basePayload, type: "LIMIT", price: orderInput.price }
+      ? {
+          ...basePayload,
+          type: "LIMIT",
+          price: orderInput.price,
+          messageType: "create-order",
+        }
       : {
           ...basePayload,
           type: "MARKET",
           slippageTolerance: orderInput.slippageTolerance,
+          messageType: "create-order",
         };
 
-  const result: ResponseType = await new Promise(async (resolve, reject) => {
-    registerResolver(correlationId, resolve, reject, config.RES_TIMEOUT);
-    publishToStream(config.ORDERS_CREATE, {
-      ...payload,
-      messageType: "create-order",
-      correlationId,
-    });
+  const result = await requestEngine(command);
+
+  res
+    .status(result.ok ? 200 : 400)
+    .json(result.ok ? result.data : { error: result.error });
+};
+
+export const onRamp = async (req: Request, res: Response) => {
+  const { amount } = onrampSchema.parse(req.body);
+
+  const result = await requestEngine({
+    userId: req.user.id,
+    amount,
+    messageType: "on-ramp",
   });
 
-  console.log("result", result);
+  res
+    .status(result.ok ? 200 : 400)
+    .json(result.ok ? result.data : { error: result.error });
+};
+
+export const withdraw = async (req: Request, res: Response) => {
+  const { amount } = withdrawSchema.parse(req.body);
+
+  const result = await requestEngine({
+    userId: req.user.id,
+    amount,
+    messageType: "withdraw",
+  });
+
+  res
+    .status(result.ok ? 200 : 400)
+    .json(result.ok ? result.data : { error: result.error });
+};
+
+export const getBalance = async (req: Request, res: Response) => {
+  const result = await requestEngine({
+    userId: req.user.id,
+    messageType: "get-balance",
+  });
 
   res
     .status(result.ok ? 200 : 400)

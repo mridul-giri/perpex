@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 const readRequiredEnv = (name: string) => {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required env variable ${name}`);
@@ -12,5 +10,5 @@ export const config = {
   AUTH_SECRET: readRequiredEnv("AUTH_SECRET"),
   ORDERS_CREATE: readRequiredEnv("ORDERS_CREATE"),
   ORDERS_ACK: readRequiredEnv("ORDERS_ACK"),
-  RES_TIMEOUT: Number(process.env.RES_TIMEOUT ?? 30000),
+  RES_TIMEOUT: Number(process.env.RES_TIMEOUT ?? "30000"),
 };

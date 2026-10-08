@@ -1,6 +1,6 @@
 import type { Response } from "express";
 import jwt from "jsonwebtoken";
-import type { TokenPayload } from "../types/auth";
+import type { TokenPayload } from "@perpex/types";
 
 export const addCookie = async (user: any, res: Response) => {
   const payload: TokenPayload = {

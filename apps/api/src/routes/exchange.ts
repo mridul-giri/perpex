@@ -1,5 +1,10 @@
 import { Router } from "express";
-import { createOrder } from "../controllers/exchange";
+import {
+  createOrder,
+  getBalance,
+  onRamp,
+  withdraw,
+} from "../controllers/exchange";
 import { asyncHandler } from "../utils/async-handler";
 import { createMarket } from "../controllers/market";
 import { authMiddleware } from "../middlewares/auth";
@@ -11,7 +16,10 @@ exchangeRouter.post(
   authMiddleware,
   asyncHandler(createMarket),
 );
-// TODO: add authMiddleware here
-exchangeRouter.post("/order", asyncHandler(createOrder));
+
+exchangeRouter.post("/onramp", authMiddleware, asyncHandler(onRamp));
+exchangeRouter.post("/withdraw", authMiddleware, asyncHandler(withdraw));
+exchangeRouter.get("/balance", authMiddleware, asyncHandler(getBalance));
+exchangeRouter.post("/order", authMiddleware, asyncHandler(createOrder));
 
 export default exchangeRouter;

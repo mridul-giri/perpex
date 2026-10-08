@@ -8,8 +8,8 @@ export interface User {
 }
 
 export interface Collateral {
-  availableBalance: number;
-  lockedBalance: number;
+  availableBalance: string;
+  lockedBalance: string;
 }
 
 //TODO: this should store in db
@@ -18,10 +18,10 @@ export interface Position {
   market: string; //TODO: "change it to marketId and store market id here"
   positionType: OrderType;
   side: OrderSide;
-  quantity: number;
-  averagePrice: number;
-  liquidationPrice: number;
-  margin: number;
+  quantity: string;
+  averagePrice: string;
+  liquidationPrice: string;
+  margin: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -32,41 +32,24 @@ export interface Order {
   market: string;
   type: OrderType;
   side: OrderSide;
-  price: number;
-  quantity: number;
-  filledQuantity: number;
+  price: string;
+  quantity: string;
+  filledQuantity: string;
   status: OrderStatus;
 }
 
-export interface PayloadType {
+export interface CreateOrderCommand {
   userId: string;
-  messageType?: string;
+  messageType: "create-order";
   market: string;
   side: OrderSide;
-  quantity: number;
+  quantity: string;
   leverage: number;
-  correlationId: string | undefined;
+  correlationId: string;
   type: OrderType;
-  price: number | undefined;
+  price: string | undefined;
   slippageTolerance: number | undefined;
 }
-
-export interface ResponseType {
-  [key: string]: any;
-  correlationId: string;
-  ok: boolean;
-  error?: string;
-}
-
-export type StreamMessages = {
-  name: string;
-  messages: {
-    id: string;
-    message: {
-      [x: string]: string;
-    };
-  }[];
-}[];
 
 export interface Bids {
   openOrders: OpenOrder[];
@@ -79,8 +62,8 @@ export interface Asks {
 export interface OpenOrder {
   userId: string;
   orderId: string;
-  quantity: number;
-  filledQuantity: number;
+  quantity: string;
+  filledQuantity: string;
   createdAt: number;
 }
 
@@ -90,7 +73,7 @@ export interface Fill {
   makerOrderId: string;
   takerOrderId: string;
   market: string;
-  quantity: number;
-  price: number;
+  quantity: string;
+  price: string;
   takerSide: OrderSide;
 }

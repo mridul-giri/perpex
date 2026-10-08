@@ -1,10 +1,14 @@
-import type { Fill, PayloadType, Position, User } from "@perpex/types";
-import { EngineError } from "../utils/engine-error";
+import type {
+  EngineFill,
+  EnginePayload,
+  EnginePosition,
+  EngineUser,
+} from "@perpex/types";
 import { maintenanceMarginRate } from "../store/store";
-import { UserService } from "./user";
+import { SCALE, toBigInt } from "../utils/conversion";
 
 export class PositionManager {
-  async getPosition(user: User, payload: PayloadType) {
+  async getPosition(user: EngineUser, payload: EnginePayload) {
     for (const position of user.positions) {
       if (position.market === payload.market) {
         return position;
@@ -14,11 +18,11 @@ export class PositionManager {
   }
 
   async createPosition(
-    user: User,
-    payload: PayloadType,
-    fill: Fill,
+    user: EngineUser,
+    payload: EnginePayload,
+    fill: EngineFill,
     leverage: number,
-    margin: number,
+    margin: bigint,
   ) {
     const liquidationPrice = await this.calculateLiquidationPrice(
       payload.side,
@@ -26,7 +30,7 @@ export class PositionManager {
       leverage,
     );
 
-    const newPosition: Position = {
+    const newPosition: EnginePosition = {
       userId: payload.userId,
       market: payload.market,
       positionType: payload.type,
@@ -43,10 +47,10 @@ export class PositionManager {
   }
 
   async updatePosition(
-    position: Position,
-    payload: PayloadType,
-    fill: Fill,
-    actualCollateralUsed: number,
+    position: EnginePosition,
+    payload: EnginePayload,
+    fill: EngineFill,
+    actualCollateralUsed: bigint,
   ) {
     const averagePrice = await this.calculateAvgPrice(position, fill);
 
@@ -66,15 +70,15 @@ export class PositionManager {
   }
 
   async partiallyClosePosition(
-    user: User,
-    position: Position,
-    fill: Fill,
-    actualCollateralUsed: number,
-    payload: PayloadType,
-    remainingPositionQty: number,
-    closeQty: number,
-    releaseCollateral: (user: User, surplus: number) => void,
-    addPnl: (user: User, pnl: number) => void,
+    user: EngineUser,
+    position: EnginePosition,
+    fill: EngineFill,
+    actualCollateralUsed: bigint,
+    payload: EnginePayload,
+    remainingPositionQty: bigint,
+    closeQty: bigint,
+    releaseCollateral: (user: EngineUser, surplus: bigint) => void,
+    addPnl: (user: EngineUser, pnl: bigint) => void,
   ) {
     const averagePrice = await this.calculateAvgPrice(position, fill);
     const newMargin = position.margin - actualCollateralUsed;
@@ -97,17 +101,17 @@ export class PositionManager {
   }
 
   async closePosition(
-    fill: Fill,
-    position: Position,
-    closeQty: number,
-    actualCollateralUsed: number,
-    user: User,
-    releaseCollateral: (user: User, surplus: number) => void,
-    addPnl: (user: User, pnl: number) => void,
+    fill: EngineFill,
+    position: EnginePosition,
+    closeQty: bigint,
+    actualCollateralUsed: bigint,
+    user: EngineUser,
+    releaseCollateral: (user: EngineUser, surplus: bigint) => void,
+    addPnl: (user: EngineUser, pnl: bigint) => void,
     deleteOpenPosition: (
-      User: User,
+      User: EngineUser,
       userId: string,
-      position: Position,
+      position: EnginePosition,
     ) => void,
     userId: string,
   ) {
@@ -124,7 +128,7 @@ export class PositionManager {
     console.log("postion-if-side-oppostie-and-close-condition", user.positions);
   }
 
-  async calculateAvgPrice(position: Position, fill: Fill) {
+  async calculateAvgPrice(position: EnginePosition, fill: EngineFill) {
     const totalQty = position.quantity + fill.quantity;
     return (
       (position.averagePrice * position.quantity + fill.price * fill.quantity) /
@@ -132,7 +136,11 @@ export class PositionManager {
     );
   }
 
-  async calculatePnl(fill: Fill, closeQty: number, position: Position) {
+  async calculatePnl(
+    fill: EngineFill,
+    closeQty: bigint,
+    position: EnginePosition,
+  ) {
     return fill.takerSide === "LONG"
       ? (fill.price - position.averagePrice) * closeQty
       : (position.averagePrice - fill.price) * closeQty;
@@ -140,11 +148,15 @@ export class PositionManager {
 
   async calculateLiquidationPrice(
     side: string,
-    avgPrice: number,
+    avgPrice: bigint,
     leverage: number,
   ) {
-    return side === "LONG"
-      ? avgPrice * (1 - 1 / leverage + maintenanceMarginRate)
-      : avgPrice * (1 + 1 / leverage - maintenanceMarginRate);
+    const inverseLeverage = SCALE / BigInt(leverage);
+    const mmr = toBigInt(String(maintenanceMarginRate));
+    const factor =
+      side === "LONG"
+        ? SCALE - inverseLeverage + mmr
+        : SCALE + inverseLeverage - mmr;
+    return (avgPrice * factor) / SCALE;
   }
 }

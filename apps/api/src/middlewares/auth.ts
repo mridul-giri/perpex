@@ -1,7 +1,7 @@
 import { config } from "@perpex/config";
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import type { TokenPayload, UserPayload } from "../types/auth";
+import type { TokenPayload, UserPayload } from "@perpex/types";
 
 export const authMiddleware = (
   req: Request,

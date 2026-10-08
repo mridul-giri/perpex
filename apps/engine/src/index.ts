@@ -1,59 +1,57 @@
 import {
   connectRedis,
-  publishToStream,
-  readFromStream,
-  subscriber,
+  consumeFromGroup,
+  createConsumerGroup,
+  STREAM_READERS,
 } from "@perpex/redis";
-import type { PayloadType, StreamMessages } from "@perpex/types";
-import { EngineManager } from "./services/engine-manager";
 import { config } from "@perpex/config";
-import { EngineError } from "./utils/engine-error";
-import { Users } from "./store/store";
-import { OrderBook } from "./services/order-book";
+import { handleAccountCommand, storeUser } from "./commands/accounts";
+import { handleCreateOrder } from "./commands/orders";
+import { handleCreateMarket } from "./commands/markets";
+import { EngineManager } from "./services/engine-manager";
+import type {
+  AccountCommand,
+  CreateMarketCommand,
+  CreateOrderCommand,
+} from "@perpex/types";
 
 await connectRedis();
 
 const engineManager = new EngineManager();
 
-const storeUser = (payload: any) => {
-  Users.set(payload.userId, {
-    collateral: { availableBalance: 5000, lockedBalance: 0 },
-    positions: [],
-  });
+const { group: ENGINE_GROUP, consumer: ENGINE_CONSUMER } =
+  STREAM_READERS.engine;
+
+let lastHandledId: string | null = null;
+
+const handleCommand = async (data: unknown, id: string) => {
+  lastHandledId = id;
+  const message = data as { messageType?: string };
+
+  switch (message.messageType) {
+    case "store-user":
+      storeUser(data as { userId: string });
+      return;
+    case "on-ramp":
+    case "withdraw":
+    case "get-balance":
+      await handleAccountCommand(data as AccountCommand);
+      return;
+    case "create-order":
+      await handleCreateOrder(engineManager, data as CreateOrderCommand);
+      return;
+    case "create-market":
+      await handleCreateMarket(engineManager, data as CreateMarketCommand);
+      return;
+    default:
+      console.log("unknown command type, ignoring:", message.messageType);
+  }
 };
 
-while (true) {
-  const stream = await readFromStream(config.ORDERS_CREATE);
-
-  if (!stream[0] || stream.length === 0) continue;
-
-  for (const { message } of stream[0].messages) {
-    if (!message.data) continue;
-    const payload = JSON.parse(message.data);
-
-    try {
-      if (payload.messageType === "store-user") {
-        storeUser(payload);
-        break;
-      }
-
-      const engine = engineManager.get(payload);
-
-      const result = engine.process(payload);
-      console.log("engine result", result);
-
-      // await publishToStream(config.ORDERS_ACK, {
-      //   // ...result,
-      //   correlationId: payload.correlationId,
-      //   ok: true,
-      // });
-    } catch (error) {
-      // console.log("Error", error);
-      await publishToStream(config.ORDERS_ACK, {
-        correlationId: payload.correlationId,
-        ok: false,
-        error: error instanceof EngineError ? error.message : "Engine Error",
-      });
-    }
-  }
-}
+await createConsumerGroup(config.ORDERS_CREATE, ENGINE_GROUP);
+await consumeFromGroup(
+  config.ORDERS_CREATE,
+  ENGINE_GROUP,
+  ENGINE_CONSUMER,
+  handleCommand,
+);

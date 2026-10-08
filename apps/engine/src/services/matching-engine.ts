@@ -1,24 +1,25 @@
-import type { Asks, Bids, Fill, PayloadType } from "@perpex/types";
+import type { EngineFill, EnginePayload, EngineSide } from "@perpex/types";
 
 export class MathchingEngine {
   matchLimitOrder(
-    payload: PayloadType,
-    entryPrice: number,
+    payload: EnginePayload,
+    entryPrice: bigint,
     orderId: string,
-    asks: Map<number, Asks>,
-    bids: Map<number, Bids>,
-    asksPrices: number[],
-    bidsPrices: number[],
-    lockedCollateral: number,
+    asks: Map<bigint, EngineSide>,
+    bids: Map<bigint, EngineSide>,
+    asksPrices: bigint[],
+    bidsPrices: bigint[],
+    lockedCollateral: bigint,
   ) {
     let orderQuantity = payload.quantity;
-    let totalFilledValue = 0;
-    const fills: Fill[] = [];
+    let totalFilledValue = 0n;
+    const fills: EngineFill[] = [];
 
     const oppositeSide = payload.side === "LONG" ? asks : bids;
     const sortedPrice = payload.side === "LONG" ? asksPrices : bidsPrices;
+    const leverage = BigInt(payload.leverage);
 
-    while (orderQuantity > 0) {
+    while (orderQuantity > 0n) {
       const bestPrice = payload.side === "LONG" ? asksPrices[0] : bidsPrices[0];
 
       if (!bestPrice) break;
@@ -39,7 +40,8 @@ export class MathchingEngine {
         break; //TODO: need to change this
       }
 
-      const filledQty = Math.min(orderQuantity, openOrder.quantity);
+      const filledQty =
+        orderQuantity < openOrder.quantity ? orderQuantity : openOrder.quantity;
 
       fills.push({
         makerUserId: openOrder.userId,
@@ -57,7 +59,7 @@ export class MathchingEngine {
       openOrder.quantity -= filledQty;
       openOrder.filledQuantity += filledQty;
 
-      if (openOrder.quantity <= 0) {
+      if (openOrder.quantity <= 0n) {
         priceData.openOrders.splice(0, 1);
       }
 
@@ -72,20 +74,20 @@ export class MathchingEngine {
 
     let status = null;
 
-    if (orderQuantity === 0) {
+    if (orderQuantity === 0n) {
       status = "Filled";
-    } else if (filledQuantity > 0) {
+    } else if (filledQuantity > 0n) {
       status = "PartiallyFilled";
     } else {
       status = "Open";
     }
 
-    const actualCollateralUsed = totalFilledValue / payload.leverage;
-    const remainingCollateral = (entryPrice * orderQuantity) / payload.leverage;
+    const actualCollateralUsed = totalFilledValue / leverage;
+    const remainingCollateral = (entryPrice * orderQuantity) / leverage;
     const surplus =
       lockedCollateral - actualCollateralUsed - remainingCollateral;
 
-    console.log("asks", asks.get(100));
+    console.log("asks", asks.get(entryPrice));
 
     return {
       fills,
@@ -98,23 +100,24 @@ export class MathchingEngine {
   }
 
   matchMarketOrder(
-    payload: PayloadType,
+    payload: EnginePayload,
     orderId: string,
-    asksPrices: number[],
-    bidsPrices: number[],
-    asks: Map<number, Asks>,
-    bids: Map<number, Bids>,
-    lockedCollateral: number,
-    worstCasePrice: number,
+    asksPrices: bigint[],
+    bidsPrices: bigint[],
+    asks: Map<bigint, EngineSide>,
+    bids: Map<bigint, EngineSide>,
+    lockedCollateral: bigint,
+    worstCasePrice: bigint,
   ) {
     let orderQuantity = payload.quantity;
-    let totalFilledValue = 0;
-    const fills: Fill[] = [];
+    let totalFilledValue = 0n;
+    const fills: EngineFill[] = [];
 
     const oppositeSide = payload.side === "LONG" ? asks : bids;
     const sortedPrice = payload.side === "LONG" ? asksPrices : bidsPrices;
+    const leverage = BigInt(payload.leverage);
 
-    while (orderQuantity > 0) {
+    while (orderQuantity > 0n) {
       const bestPrice = payload.side === "LONG" ? asksPrices[0] : bidsPrices[0];
 
       if (!bestPrice) break;
@@ -136,7 +139,8 @@ export class MathchingEngine {
         break; //TODO: need to change this
       }
 
-      const filledQty = Math.min(orderQuantity, openOrder.quantity);
+      const filledQty =
+        orderQuantity < openOrder.quantity ? orderQuantity : openOrder.quantity;
 
       fills.push({
         makerUserId: openOrder.userId,
@@ -154,7 +158,7 @@ export class MathchingEngine {
       openOrder.quantity -= filledQty;
       openOrder.filledQuantity += filledQty;
 
-      if (openOrder.quantity <= 0) {
+      if (openOrder.quantity <= 0n) {
         priceData.openOrders.splice(0, 1);
       }
 
@@ -168,13 +172,13 @@ export class MathchingEngine {
 
     let status = null;
 
-    if (orderQuantity === 0) {
+    if (orderQuantity === 0n) {
       status = "Filled";
     } else {
       status = "Cancelled";
     }
 
-    const actualCollateralUsed = totalFilledValue / payload.leverage;
+    const actualCollateralUsed = totalFilledValue / leverage;
     const surplus = lockedCollateral - actualCollateralUsed;
 
     return {

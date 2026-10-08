@@ -1,31 +1,28 @@
-import type { PayloadType } from "@perpex/types";
+import type { Market } from "@perpex/types";
 import { Engine } from "./engine";
 import { UserService } from "./user";
 import { MathchingEngine } from "./matching-engine";
 import { PositionManager } from "./position-manager";
+import { EngineError } from "../utils/engine-error";
 
 export class EngineManager {
   private markets = new Map<string, Engine>();
 
-  private userService = new UserService();
-  private matcher = new MathchingEngine();
-  private positionManager = new PositionManager();
+  register(market: Market) {
+    if (this.markets.has(market.marketSlug)) {
+      throw new EngineError(409, "Market already exists");
+    }
 
-  private register(payload: PayloadType) {
-    const market = new Engine(
-      this.userService,
-      this.matcher,
-      this.positionManager,
-    );
-    this.markets.set(payload.market, market);
-    return market;
+    const userService = new UserService();
+    const matcher = new MathchingEngine();
+    const positionManager = new PositionManager();
+
+    const engine = new Engine(market, userService, matcher, positionManager);
+    this.markets.set(market.marketSlug, engine);
+    return engine;
   }
 
-  get(payload: PayloadType) {
-    const market = this.markets.get(payload.market);
-    if (!market) {
-      return this.register(payload);
-    }
-    return market;
+  get(marketSlug: string) {
+    return this.markets.get(marketSlug);
   }
 }
