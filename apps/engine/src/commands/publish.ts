@@ -2,7 +2,7 @@ import { publishToStream } from "@perpex/redis";
 import { config } from "@perpex/config";
 import { EngineError } from "../utils/engine-error";
 import { toString } from "../utils/conversion";
-import type { EngineCollateral, Market } from "@perpex/types";
+import type { EngineCollateral, Liquidation, Market } from "@perpex/types";
 
 export const publishError = async (
   correlationId: string | undefined,
@@ -57,5 +57,12 @@ export const publishMarketCreated = async (market: Market) => {
   await publishToStream(config.ORDERS_ACK, {
     ...market,
     messageType: "market-created",
+  });
+};
+
+export const publishLiquidation = async (liquidation: Liquidation) => {
+  await publishToStream(config.ORDERS_ACK, {
+    ...liquidation,
+    messageType: "liquidation",
   });
 };

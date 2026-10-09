@@ -6,15 +6,19 @@ import { UserService } from "./user";
 import { MathchingEngine } from "./matching-engine";
 import { BookManager } from "./book-manager";
 import { PositionManager } from "./position-manager";
+import { insuranceFund } from "./insurance-fund";
+import { publishLiquidation } from "../commands/publish";
 import { SCALE, toBigInt, toString } from "../utils/conversion";
-import { totalSlippageTolerance } from "../store/store";
+import { MAX_PRICE, totalSlippageTolerance } from "../store/store";
 import type {
   EngineClosedPosition,
   EngineFill,
   EngineMakerFill,
   EnginePayload,
+  EnginePosition,
   EngineUser,
   Order,
+  OrderSide,
 } from "@perpex/types";
 
 export class OrderBook {
@@ -246,6 +250,119 @@ export class OrderBook {
       status: "Cancelled",
       releasedMargin: toString(removed.margin),
     };
+  }
+
+  setMarkPrice(price: bigint) {
+    this.book.setMarkPrice(price);
+  }
+
+  getMarkPrice() {
+    return this.book.getMarkPrice();
+  }
+
+  async liquidatePosition(
+    user: EngineUser,
+    position: EnginePosition,
+    markPrice: bigint,
+  ) {
+    const closingSide: OrderSide = position.side === "LONG" ? "SHORT" : "LONG";
+
+    const payload: EnginePayload = {
+      userId: position.userId,
+      market: position.market,
+      side: closingSide,
+      quantity: position.quantity,
+      leverage: this.effectiveLeverage(position),
+      correlationId: undefined,
+      type: "MARKET",
+      price: undefined,
+      slippageTolerance: undefined,
+    };
+
+    const orderId = crypto.randomUUID();
+    await this.publishOrderCreated(orderId, payload);
+
+    const worstCasePrice = closingSide === "LONG" ? MAX_PRICE : 0n;
+
+    const result = this.matcher.matchMarketOrder(
+      payload,
+      orderId,
+      this.book.asksPrices,
+      this.book.bidsPrices,
+      this.book.getAsks(),
+      this.book.getBids(),
+      0n,
+      worstCasePrice,
+    );
+
+    for (let i = 0; i < result.fills.length; i++) {
+      const fill = result.fills[i]!;
+      const makerFill = result.makerFills[i]!;
+
+      await this.publishFill(fill);
+      await this.handleMakerFill(makerFill, fill);
+    }
+
+    const matchedValue = result.totalFilledValue;
+    const remainingValue = markPrice * result.remainingQuantity;
+    const exitPrice = (matchedValue + remainingValue) / position.quantity;
+
+    const pnl = this.positionManager.calculateRealizedPnl(
+      position,
+      exitPrice,
+      position.quantity,
+    );
+    const deficit = position.margin + pnl < 0n ? -(position.margin + pnl) : 0n;
+
+    if (deficit > 0n) {
+      if (insuranceFund.coverDeficit(position.market, deficit)) {
+        user.collateral.availableBalance += deficit;
+      } else {
+        const covered = insuranceFund.getFund(position.market);
+        insuranceFund.coverDeficit(position.market, covered);
+        user.collateral.availableBalance += covered;
+      }
+    }
+
+    const closed = this.positionManager.closeLiquidatedPosition(
+      user,
+      position,
+      exitPrice,
+    );
+
+    if (user.collateral.availableBalance < 0n) {
+      console.log(
+        `insurance fund exhausted; uncovered loss for user ${position.userId}`,
+      );
+      user.collateral.availableBalance = 0n;
+    }
+
+    const bankruptcyPrice =
+      this.positionManager.calculateBankruptcyPrice(position);
+
+    await this.publishClosedPosition(closed);
+    await this.publishBalanceUpdate(position.userId, user);
+    await publishLiquidation({
+      userId: position.userId,
+      market: position.market,
+      quantity: toString(position.quantity),
+      price: toString(exitPrice),
+      liquidationPrice: toString(position.liquidationPrice),
+      bankruptcyPrice: toString(bankruptcyPrice),
+    });
+
+    return { closed, deficit, bankruptcyPrice };
+  }
+
+  private effectiveLeverage(position: EnginePosition) {
+    if (position.margin <= 0n || position.quantity <= 0n) return 1;
+
+    const notional = (position.averagePrice * position.quantity) / SCALE;
+    const leverage = Number(
+      (notional + position.margin - 1n) / position.margin,
+    );
+
+    return leverage > 0 ? leverage : 1;
   }
 
   private fillMargin(fill: EngineFill, leverage: number) {

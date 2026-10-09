@@ -7,6 +7,7 @@ export class BookManager {
   private asks: Map<bigint, EngineSide> = new Map();
   bidsPrices: bigint[] = [];
   asksPrices: bigint[] = [];
+  private markPrice: bigint | undefined;
 
   getAsks() {
     return this.asks;
@@ -14,6 +15,14 @@ export class BookManager {
 
   getBids() {
     return this.bids;
+  }
+
+  setMarkPrice(price: bigint) {
+    this.markPrice = price;
+  }
+
+  getMarkPrice() {
+    return this.markPrice;
   }
 
   placeIntoSide(

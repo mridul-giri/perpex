@@ -192,6 +192,36 @@ export class PositionManager {
     return closed;
   }
 
+  closeLiquidatedPosition(
+    user: EngineUser,
+    position: EnginePosition,
+    exitPrice: bigint,
+  ): EngineClosedPosition {
+    const pnl = this.calculateRealizedPnl(
+      position,
+      exitPrice,
+      position.quantity,
+    );
+
+    const closed: EngineClosedPosition = {
+      userId: position.userId,
+      market: position.market,
+      side: position.side,
+      quantity: position.quantity,
+      averagePrice: position.averagePrice,
+      exitPrice,
+      liquidationPrice: position.liquidationPrice,
+      margin: position.margin,
+      realizedPnl: pnl,
+    };
+
+    this.settle(user, position.margin, pnl);
+
+    user.positions.delete(position.market);
+
+    return closed;
+  }
+
   private settle(user: EngineUser, margin: bigint, pnl: bigint) {
     user.collateral.lockedBalance -= margin;
     user.collateral.availableBalance += margin + pnl;
@@ -212,6 +242,17 @@ export class PositionManager {
 
   calculateUnrealizedPnl(position: EnginePosition, markPrice: bigint) {
     return this.calculateRealizedPnl(position, markPrice, position.quantity);
+  }
+
+  calculateBankruptcyPrice(position: EnginePosition) {
+    const move =
+      position.quantity === 0n
+        ? 0n
+        : (position.margin * SCALE) / position.quantity;
+
+    return position.side === "LONG"
+      ? position.averagePrice - move
+      : position.averagePrice + move;
   }
 
   calculateLiquidationPrice(

@@ -5,12 +5,13 @@ import {
   STREAM_READERS,
 } from "@perpex/redis";
 import { config } from "@perpex/config";
-import type { ClosedPosition, Order } from "@perpex/types";
+import type { ClosedPosition, Liquidation, Order } from "@perpex/types";
 import { cancelOrder, createOrder, updateOrder } from "./services/order";
 import { createFill } from "./services/fill";
 import { updateBalance } from "./services/balance";
 import { upsertMarket } from "./services/market";
 import { createClosedPosition } from "./services/position";
+import { createLiquidation } from "./services/liquidation";
 
 await connectRedis();
 
@@ -45,6 +46,10 @@ async function storeToDb(data: any) {
     }
     case "position-closed": {
       await createClosedPosition(data as ClosedPosition);
+      break;
+    }
+    case "liquidation": {
+      await createLiquidation(data as Liquidation);
       break;
     }
   }

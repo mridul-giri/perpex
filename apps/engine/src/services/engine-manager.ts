@@ -3,6 +3,7 @@ import { Engine } from "./engine";
 import { UserService } from "./user";
 import { MathchingEngine } from "./matching-engine";
 import { PositionManager } from "./position-manager";
+import { insuranceFund } from "./insurance-fund";
 import { EngineError } from "../utils/engine-error";
 
 export class EngineManager {
@@ -18,6 +19,7 @@ export class EngineManager {
     const positionManager = new PositionManager();
 
     const engine = new Engine(market, userService, matcher, positionManager);
+    insuranceFund.seed(market.marketSlug);
     this.markets.set(market.marketSlug, engine);
     return engine;
   }

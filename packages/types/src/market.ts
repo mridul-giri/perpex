@@ -10,3 +10,9 @@ export interface CreateMarketCommand {
   marketSlug: string;
   imageUrl?: string;
 }
+
+export interface MarkPriceCommand {
+  messageType: "mark-price";
+  market: string;
+  price: string;
+}

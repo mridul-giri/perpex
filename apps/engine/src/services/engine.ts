@@ -2,7 +2,12 @@ import { OrderBook } from "./order-book";
 import { UserService } from "./user";
 import { MathchingEngine } from "./matching-engine";
 import { PositionManager } from "./position-manager";
-import type { EnginePayload, Market } from "@perpex/types";
+import type {
+  EnginePayload,
+  EnginePosition,
+  EngineUser,
+  Market,
+} from "@perpex/types";
 
 export class Engine {
   private orderBook: OrderBook;
@@ -26,5 +31,21 @@ export class Engine {
 
   cancelOrder(userId: string, orderId: string) {
     return this.orderBook.cancelOrder(userId, orderId);
+  }
+
+  setMarkPrice(price: bigint) {
+    this.orderBook.setMarkPrice(price);
+  }
+
+  getMarkPrice() {
+    return this.orderBook.getMarkPrice();
+  }
+
+  liquidatePosition(
+    user: EngineUser,
+    position: EnginePosition,
+    markPrice: bigint,
+  ) {
+    return this.orderBook.liquidatePosition(user, position, markPrice);
   }
 }

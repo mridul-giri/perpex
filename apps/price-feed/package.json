@@ -1,0 +1,23 @@
+{
+  "name": "price-feed",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --env-file=../../.env --hot run src/index.ts",
+    "start": "bun --env-file=../../.env run src/index.ts"
+  },
+  "devDependencies": {
+    "@perpex/config": "workspace:*",
+    "@types/bun": "latest",
+    "@types/ws": "^8.18.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@perpex/redis": "workspace:*",
+    "@perpex/types": "workspace:*",
+    "ws": "^8.18.0"
+  }
+}

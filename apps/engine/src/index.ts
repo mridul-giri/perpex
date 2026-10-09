@@ -9,16 +9,20 @@ import { handleAccountCommand, storeUser } from "./commands/accounts";
 import { handleCancelOrder, handleCreateOrder } from "./commands/orders";
 import { handleCreateMarket } from "./commands/markets";
 import { EngineManager } from "./services/engine-manager";
+import { LiquidationManager } from "./services/liquidation";
+import { toBigInt } from "./utils/conversion";
 import type {
   AccountCommand,
   CancelOrderCommand,
   CreateMarketCommand,
   CreateOrderCommand,
+  MarkPriceCommand,
 } from "@perpex/types";
 
 await connectRedis();
 
 const engineManager = new EngineManager();
+const liquidationManager = new LiquidationManager(engineManager);
 
 const { group: ENGINE_GROUP, consumer: ENGINE_CONSUMER } =
   STREAM_READERS.engine;
@@ -47,6 +51,16 @@ const handleCommand = async (data: unknown, id: string) => {
     case "create-market":
       await handleCreateMarket(engineManager, data as CreateMarketCommand);
       return;
+    case "mark-price": {
+      const command = data as MarkPriceCommand;
+      const engine = engineManager.get(command.market);
+      if (!engine) return;
+
+      const price = toBigInt(command.price);
+      engine.setMarkPrice(price);
+      await liquidationManager.liquidateUnderwater(command.market, price);
+      return;
+    }
     default:
       console.log("unknown command type, ignoring:", message.messageType);
   }

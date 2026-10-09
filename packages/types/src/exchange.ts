@@ -46,3 +46,12 @@ export interface CancelOrderCommand {
   orderId: string;
   correlationId: string;
 }
+
+export interface Liquidation {
+  userId: string;
+  market: string;
+  quantity: string;
+  price: string;
+  liquidationPrice: string;
+  bankruptcyPrice: string;
+}

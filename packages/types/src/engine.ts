@@ -83,3 +83,12 @@ export interface EngineClosedPosition {
   margin: bigint;
   realizedPnl: bigint;
 }
+
+export interface LiquidatedUser {
+  userId: string;
+  market: string;
+  quantity: bigint;
+  price: bigint;
+  liquidationPrice: bigint;
+  bankruptcyPrice: bigint;
+}
