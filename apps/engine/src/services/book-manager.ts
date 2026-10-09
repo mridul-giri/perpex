@@ -8,6 +8,7 @@ export class BookManager {
   bidsPrices: bigint[] = [];
   asksPrices: bigint[] = [];
   private markPrice: bigint | undefined;
+  private indexPrice: bigint | undefined;
 
   getAsks() {
     return this.asks;
@@ -23,6 +24,14 @@ export class BookManager {
 
   getMarkPrice() {
     return this.markPrice;
+  }
+
+  setIndexPrice(price: bigint) {
+    this.indexPrice = price;
+  }
+
+  getIndexPrice() {
+    return this.indexPrice;
   }
 
   placeIntoSide(

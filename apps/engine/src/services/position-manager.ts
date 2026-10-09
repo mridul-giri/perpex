@@ -268,4 +268,24 @@ export class PositionManager {
         : SCALE + inverseLeverage - mmr;
     return (averagePrice * factor) / SCALE;
   }
+
+  updateLiquidationPrice(position: EnginePosition) {
+    position.liquidationPrice = this.calculateLiquidationPrice(
+      position.side,
+      position.averagePrice,
+      this.effectiveLeverage(position),
+    );
+    position.updatedAt = Date.now();
+  }
+
+  private effectiveLeverage(position: EnginePosition) {
+    if (position.margin <= 0n || position.quantity <= 0n) return 1;
+
+    const notional = (position.averagePrice * position.quantity) / SCALE;
+    const leverage = Number(
+      (notional + position.margin - 1n) / position.margin,
+    );
+
+    return leverage > 0 ? leverage : 1;
+  }
 }

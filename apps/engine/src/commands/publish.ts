@@ -66,3 +66,18 @@ export const publishLiquidation = async (liquidation: Liquidation) => {
     messageType: "liquidation",
   });
 };
+
+export const publishFunding = async (
+  market: string,
+  rateBps: bigint,
+  payments: number,
+  usedInsuranceFund: bigint,
+) => {
+  await publishToStream(config.ORDERS_ACK, {
+    messageType: "funding",
+    market,
+    rate: rateBps.toString(),
+    payments,
+    usedInsuranceFund: toString(usedInsuranceFund),
+  });
+};

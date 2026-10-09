@@ -41,6 +41,14 @@ export class Engine {
     return this.orderBook.getMarkPrice();
   }
 
+  setIndexPrice(price: bigint) {
+    this.orderBook.setIndexPrice(price);
+  }
+
+  getIndexPrice() {
+    return this.orderBook.getIndexPrice();
+  }
+
   liquidatePosition(
     user: EngineUser,
     position: EnginePosition,

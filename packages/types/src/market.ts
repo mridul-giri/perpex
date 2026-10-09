@@ -15,4 +15,10 @@ export interface MarkPriceCommand {
   messageType: "mark-price";
   market: string;
   price: string;
+  indexPrice: string;
+}
+
+export interface FundingSettlementCommand {
+  messageType: "funding-settlement";
+  market: string;
 }

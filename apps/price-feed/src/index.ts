@@ -1,7 +1,7 @@
 import { WebSocket } from "ws";
 import { connectRedis, publishToStream } from "@perpex/redis";
 import { config } from "@perpex/config";
-import type { MarkPriceCommand } from "@perpex/types";
+import type { FundingSettlementCommand, MarkPriceCommand } from "@perpex/types";
 
 const MARK_PRICE_STREAM_URL =
   "wss://fstream.binance.com/market/ws/!markPrice@arr@1s";
@@ -47,9 +47,30 @@ const publishTick = async (tick: BinanceMarkPrice) => {
     messageType: "mark-price",
     market,
     price: tick.p,
+    indexPrice: tick.i,
   };
 
   await publishToStream(config.ORDERS_CREATE, command);
+};
+
+const publishFundingSettlement = async (market: string) => {
+  const command: FundingSettlementCommand = {
+    messageType: "funding-settlement",
+    market,
+  };
+
+  await publishToStream(config.ORDERS_CREATE, command);
+};
+
+const scheduleFunding = () => {
+  const intervalMs = config.FUNDING_INTERVAL_SECONDS * 1000;
+  const markets = Object.values(MARKET_BY_SYMBOL);
+
+  setInterval(() => {
+    void Promise.all(markets.map(publishFundingSettlement)).catch((error) =>
+      console.error("failed to publish funding settlement", error),
+    );
+  }, intervalMs);
 };
 
 const connect = () => {
@@ -81,3 +102,4 @@ const connect = () => {
 
 await connectRedis();
 connect();
+scheduleFunding();

@@ -260,6 +260,14 @@ export class OrderBook {
     return this.book.getMarkPrice();
   }
 
+  setIndexPrice(price: bigint) {
+    this.book.setIndexPrice(price);
+  }
+
+  getIndexPrice() {
+    return this.book.getIndexPrice();
+  }
+
   async liquidatePosition(
     user: EngineUser,
     position: EnginePosition,

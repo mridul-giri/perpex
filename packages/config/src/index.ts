@@ -11,4 +11,7 @@ export const config = {
   ORDERS_CREATE: readRequiredEnv("ORDERS_CREATE"),
   ORDERS_ACK: readRequiredEnv("ORDERS_ACK"),
   RES_TIMEOUT: Number(process.env.RES_TIMEOUT ?? "30000"),
+  FUNDING_INTERVAL_SECONDS: Number(
+    process.env.FUNDING_INTERVAL_SECONDS ?? "28800",
+  ),
 };
