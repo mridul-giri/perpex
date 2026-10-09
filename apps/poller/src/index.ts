@@ -5,9 +5,12 @@ import {
   STREAM_READERS,
 } from "@perpex/redis";
 import { config } from "@perpex/config";
-import { createOrder } from "./services/order";
+import type { ClosedPosition, Order } from "@perpex/types";
+import { cancelOrder, createOrder, updateOrder } from "./services/order";
+import { createFill } from "./services/fill";
 import { updateBalance } from "./services/balance";
 import { upsertMarket } from "./services/market";
+import { createClosedPosition } from "./services/position";
 
 await connectRedis();
 
@@ -16,16 +19,32 @@ const { group: POLLER_GROUP, consumer: POLLER_CONSUMER } =
 
 async function storeToDb(data: any) {
   switch (data.messageType) {
+    case "market-created": {
+      await upsertMarket(data);
+      break;
+    }
     case "order-created": {
-      await createOrder(data);
+      await createOrder(data as Order);
+      break;
+    }
+    case "order-updated": {
+      await updateOrder(data as Order);
+      break;
+    }
+    case "order-cancelled": {
+      await cancelOrder(data as { orderId: string });
+      break;
+    }
+    case "fill-created": {
+      await createFill(data);
       break;
     }
     case "balance-updated": {
       await updateBalance(data);
       break;
     }
-    case "market-created": {
-      await upsertMarket(data);
+    case "position-closed": {
+      await createClosedPosition(data as ClosedPosition);
       break;
     }
   }
@@ -37,7 +56,6 @@ await consumeFromGroup(
   POLLER_GROUP,
   POLLER_CONSUMER,
   async (data) => {
-    console.log("from the pooler", data);
     await storeToDb(data);
   },
 );

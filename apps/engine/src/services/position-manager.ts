@@ -1,154 +1,222 @@
 import type {
+  EngineClosedPosition,
   EngineFill,
   EnginePayload,
   EnginePosition,
   EngineUser,
+  OrderSide,
 } from "@perpex/types";
 import { maintenanceMarginRate } from "../store/store";
 import { SCALE, toBigInt } from "../utils/conversion";
 
 export class PositionManager {
-  async getPosition(user: EngineUser, payload: EnginePayload) {
-    for (const position of user.positions) {
-      if (position.market === payload.market) {
-        return position;
-      }
-    }
-    return null;
-  }
-
-  async createPosition(
+  applyFill(
     user: EngineUser,
     payload: EnginePayload,
     fill: EngineFill,
-    leverage: number,
-    margin: bigint,
-  ) {
-    const liquidationPrice = await this.calculateLiquidationPrice(
-      payload.side,
-      fill.price,
-      leverage,
-    );
+    fillMargin: bigint,
+  ): EngineClosedPosition | null {
+    const position = user.positions.get(payload.market);
 
-    const newPosition: EnginePosition = {
+    if (!position) {
+      this.openPosition(user, payload, fill, fillMargin);
+      return null;
+    }
+
+    if (position.side === payload.side) {
+      this.increasePosition(position, payload, fill, fillMargin);
+      return null;
+    }
+
+    if (fill.quantity < position.quantity) {
+      this.reducePosition(user, position, payload, fill, fillMargin);
+      return null;
+    }
+
+    if (fill.quantity === position.quantity) {
+      return this.closePosition(user, position, payload, fill, fillMargin);
+    }
+
+    return this.flipPosition(user, position, payload, fill, fillMargin);
+  }
+
+  private openPosition(
+    user: EngineUser,
+    payload: EnginePayload,
+    fill: EngineFill,
+    fillMargin: bigint,
+  ) {
+    const position: EnginePosition = {
       userId: payload.userId,
       market: payload.market,
-      positionType: payload.type,
       side: payload.side,
       quantity: fill.quantity,
-      margin,
       averagePrice: fill.price,
-      liquidationPrice,
+      margin: fillMargin,
+      liquidationPrice: this.calculateLiquidationPrice(
+        payload.side,
+        fill.price,
+        payload.leverage,
+      ),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
 
-    user.positions.push(newPosition);
+    user.positions.set(payload.market, position);
   }
 
-  async updatePosition(
+  private increasePosition(
     position: EnginePosition,
     payload: EnginePayload,
     fill: EngineFill,
-    actualCollateralUsed: bigint,
+    fillMargin: bigint,
   ) {
-    const averagePrice = await this.calculateAvgPrice(position, fill);
-
     const newQuantity = position.quantity + fill.quantity;
-    const newMargin = position.margin + actualCollateralUsed;
 
-    const liquidationPrice = await this.calculateLiquidationPrice(
-      payload.side,
-      averagePrice,
-      payload.leverage,
-    );
-
-    position.quantity = newQuantity;
-    position.margin = newMargin;
-    position.averagePrice = averagePrice;
-    position.liquidationPrice = liquidationPrice;
-  }
-
-  async partiallyClosePosition(
-    user: EngineUser,
-    position: EnginePosition,
-    fill: EngineFill,
-    actualCollateralUsed: bigint,
-    payload: EnginePayload,
-    remainingPositionQty: bigint,
-    closeQty: bigint,
-    releaseCollateral: (user: EngineUser, surplus: bigint) => void,
-    addPnl: (user: EngineUser, pnl: bigint) => void,
-  ) {
-    const averagePrice = await this.calculateAvgPrice(position, fill);
-    const newMargin = position.margin - actualCollateralUsed;
-
-    const liquidationPrice = await this.calculateLiquidationPrice(
-      payload.side,
-      averagePrice,
-      payload.leverage,
-    );
-
-    const pnl = await this.calculatePnl(fill, closeQty, position);
-
-    releaseCollateral(user, newMargin);
-    addPnl(user, pnl);
-
-    position.liquidationPrice = liquidationPrice;
-    position.averagePrice = averagePrice;
-    position.margin = newMargin;
-    position.quantity = remainingPositionQty;
-  }
-
-  async closePosition(
-    fill: EngineFill,
-    position: EnginePosition,
-    closeQty: bigint,
-    actualCollateralUsed: bigint,
-    user: EngineUser,
-    releaseCollateral: (user: EngineUser, surplus: bigint) => void,
-    addPnl: (user: EngineUser, pnl: bigint) => void,
-    deleteOpenPosition: (
-      User: EngineUser,
-      userId: string,
-      position: EnginePosition,
-    ) => void,
-    userId: string,
-  ) {
-    const pnl = await this.calculatePnl(fill, closeQty, position);
-    console.log("pnl in close condition", pnl);
-
-    const newMargin = position.margin - actualCollateralUsed;
-
-    releaseCollateral(user, newMargin);
-    addPnl(user, pnl);
-    deleteOpenPosition(user, userId, position);
-
-    console.log("close full condition collateral", user.collateral);
-    console.log("postion-if-side-oppostie-and-close-condition", user.positions);
-  }
-
-  async calculateAvgPrice(position: EnginePosition, fill: EngineFill) {
-    const totalQty = position.quantity + fill.quantity;
-    return (
+    position.averagePrice =
       (position.averagePrice * position.quantity + fill.price * fill.quantity) /
-      totalQty
+      newQuantity;
+    position.quantity = newQuantity;
+    position.margin += fillMargin;
+    position.liquidationPrice = this.calculateLiquidationPrice(
+      position.side,
+      position.averagePrice,
+      payload.leverage,
     );
+    position.updatedAt = Date.now();
   }
 
-  async calculatePnl(
-    fill: EngineFill,
-    closeQty: bigint,
+  private reducePosition(
+    user: EngineUser,
     position: EnginePosition,
+    payload: EnginePayload,
+    fill: EngineFill,
+    fillMargin: bigint,
   ) {
-    return fill.takerSide === "LONG"
-      ? (fill.price - position.averagePrice) * closeQty
-      : (position.averagePrice - fill.price) * closeQty;
+    const releasedMargin =
+      (position.margin * fill.quantity) / position.quantity;
+    const pnl = this.calculateRealizedPnl(position, fill.price, fill.quantity);
+
+    this.settle(user, releasedMargin + fillMargin, pnl);
+
+    position.quantity -= fill.quantity;
+    position.margin -= releasedMargin;
+    position.liquidationPrice = this.calculateLiquidationPrice(
+      position.side,
+      position.averagePrice,
+      payload.leverage,
+    );
+    position.updatedAt = Date.now();
   }
 
-  async calculateLiquidationPrice(
-    side: string,
-    avgPrice: bigint,
+  private closePosition(
+    user: EngineUser,
+    position: EnginePosition,
+    payload: EnginePayload,
+    fill: EngineFill,
+    fillMargin: bigint,
+  ): EngineClosedPosition {
+    const pnl = this.calculateRealizedPnl(
+      position,
+      fill.price,
+      position.quantity,
+    );
+
+    const closed: EngineClosedPosition = {
+      userId: payload.userId,
+      market: payload.market,
+      side: position.side,
+      quantity: position.quantity,
+      averagePrice: position.averagePrice,
+      exitPrice: fill.price,
+      liquidationPrice: position.liquidationPrice,
+      margin: position.margin,
+      realizedPnl: pnl,
+    };
+
+    this.settle(user, position.margin + fillMargin, pnl);
+
+    user.positions.delete(payload.market);
+
+    return closed;
+  }
+
+  private flipPosition(
+    user: EngineUser,
+    position: EnginePosition,
+    payload: EnginePayload,
+    fill: EngineFill,
+    fillMargin: bigint,
+  ): EngineClosedPosition {
+    const closedQuantity = position.quantity;
+    const flippedQuantity = fill.quantity - closedQuantity;
+    const releasedMargin = position.margin;
+    const pnl = this.calculateRealizedPnl(position, fill.price, closedQuantity);
+    const flippedMargin =
+      (fill.price * flippedQuantity) / (SCALE * BigInt(payload.leverage));
+
+    const closed: EngineClosedPosition = {
+      userId: payload.userId,
+      market: payload.market,
+      side: position.side,
+      quantity: closedQuantity,
+      averagePrice: position.averagePrice,
+      exitPrice: fill.price,
+      liquidationPrice: position.liquidationPrice,
+      margin: releasedMargin,
+      realizedPnl: pnl,
+    };
+
+    this.settle(user, releasedMargin + (fillMargin - flippedMargin), pnl);
+
+    user.positions.delete(payload.market);
+
+    const flipped: EnginePosition = {
+      userId: payload.userId,
+      market: payload.market,
+      side: payload.side,
+      quantity: flippedQuantity,
+      averagePrice: fill.price,
+      margin: flippedMargin,
+      liquidationPrice: this.calculateLiquidationPrice(
+        payload.side,
+        fill.price,
+        payload.leverage,
+      ),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    user.positions.set(payload.market, flipped);
+
+    return closed;
+  }
+
+  private settle(user: EngineUser, margin: bigint, pnl: bigint) {
+    user.collateral.lockedBalance -= margin;
+    user.collateral.availableBalance += margin + pnl;
+  }
+
+  calculateRealizedPnl(
+    position: EnginePosition,
+    closePrice: bigint,
+    closeQuantity: bigint,
+  ) {
+    const difference =
+      position.side === "LONG"
+        ? closePrice - position.averagePrice
+        : position.averagePrice - closePrice;
+
+    return (difference * closeQuantity) / SCALE;
+  }
+
+  calculateUnrealizedPnl(position: EnginePosition, markPrice: bigint) {
+    return this.calculateRealizedPnl(position, markPrice, position.quantity);
+  }
+
+  calculateLiquidationPrice(
+    side: OrderSide,
+    averagePrice: bigint,
     leverage: number,
   ) {
     const inverseLeverage = SCALE / BigInt(leverage);
@@ -157,6 +225,6 @@ export class PositionManager {
       side === "LONG"
         ? SCALE - inverseLeverage + mmr
         : SCALE + inverseLeverage - mmr;
-    return (avgPrice * factor) / SCALE;
+    return (averagePrice * factor) / SCALE;
   }
 }

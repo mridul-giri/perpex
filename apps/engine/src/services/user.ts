@@ -1,4 +1,4 @@
-import type { EnginePosition, EngineUser } from "@perpex/types";
+import type { EngineUser } from "@perpex/types";
 import { Users } from "../store/store";
 import { EngineError } from "../utils/engine-error";
 
@@ -13,7 +13,7 @@ export class UserService {
     if (!user) {
       Users.set(userId, {
         collateral: { availableBalance: amount, lockedBalance: 0n },
-        positions: [],
+        positions: new Map(),
       });
       return amount;
     }
@@ -48,23 +48,11 @@ export class UserService {
   }
 
   releaseCollateral(user: EngineUser, surplus: bigint) {
-    user.collateral.lockedBalance -= surplus;
-    user.collateral.availableBalance += surplus;
+    this.unlockCollateral(user, surplus);
   }
 
-  addPnl(user: EngineUser, pnl: bigint) {
-    user.collateral.availableBalance += pnl;
-  }
-
-  deleteOpenPosition(
-    user: EngineUser,
-    userId: string,
-    position: EnginePosition,
-  ) {
-    const updatedPosition = user.positions.filter(
-      (position) => userId != position.userId,
-    );
-
-    user.positions.push(...updatedPosition);
+  unlockCollateral(user: EngineUser, amount: bigint) {
+    user.collateral.lockedBalance -= amount;
+    user.collateral.availableBalance += amount;
   }
 }

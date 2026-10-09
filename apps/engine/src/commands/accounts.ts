@@ -9,7 +9,7 @@ const userService = new UserService();
 export const storeUser = (payload: { userId: string }) => {
   Users.set(payload.userId, {
     collateral: { availableBalance: 0n, lockedBalance: 0n },
-    positions: [],
+    positions: new Map(),
   });
 };
 

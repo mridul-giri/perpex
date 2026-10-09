@@ -1,8 +1,14 @@
 import z from "zod";
 
+const PRECISION = 8;
+
 const moneyString = z
   .string()
   .regex(/^\d+(\.\d+)?$/, "must be a positive number")
+  .refine(
+    (value) => (value.split(".")[1]?.length ?? 0) <= PRECISION,
+    `must have at most ${PRECISION} decimals`,
+  )
   .refine((value) => Number(value) > 0, "must be greater than zero");
 
 export const orderSchema = z.discriminatedUnion("type", [
@@ -38,4 +44,9 @@ export const onrampSchema = z.object({
 
 export const withdrawSchema = z.object({
   amount: moneyString,
+});
+
+export const cancelOrderSchema = z.object({
+  market: z.string().min(1, "Market is required"),
+  orderId: z.string().min(1, "Order id is required"),
 });

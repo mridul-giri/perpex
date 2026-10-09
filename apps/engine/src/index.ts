@@ -6,11 +6,12 @@ import {
 } from "@perpex/redis";
 import { config } from "@perpex/config";
 import { handleAccountCommand, storeUser } from "./commands/accounts";
-import { handleCreateOrder } from "./commands/orders";
+import { handleCancelOrder, handleCreateOrder } from "./commands/orders";
 import { handleCreateMarket } from "./commands/markets";
 import { EngineManager } from "./services/engine-manager";
 import type {
   AccountCommand,
+  CancelOrderCommand,
   CreateMarketCommand,
   CreateOrderCommand,
 } from "@perpex/types";
@@ -39,6 +40,9 @@ const handleCommand = async (data: unknown, id: string) => {
       return;
     case "create-order":
       await handleCreateOrder(engineManager, data as CreateOrderCommand);
+      return;
+    case "cancel-order":
+      await handleCancelOrder(engineManager, data as CancelOrderCommand);
       return;
     case "create-market":
       await handleCreateMarket(engineManager, data as CreateMarketCommand);

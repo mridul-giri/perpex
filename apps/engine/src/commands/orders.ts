@@ -1,4 +1,8 @@
-import type { CreateOrderCommand, EnginePayload } from "@perpex/types";
+import type {
+  CancelOrderCommand,
+  CreateOrderCommand,
+  EnginePayload,
+} from "@perpex/types";
 import type { EngineManager } from "../services/engine-manager";
 import { EngineError } from "../utils/engine-error";
 import { toBigInt } from "../utils/conversion";
@@ -20,6 +24,22 @@ export const handleCreateOrder = async (
 
     const result = engine.addOrder(enginePayload);
     console.log("engine result", result);
+
+    await publishSuccess(payload.correlationId, result);
+  } catch (error) {
+    await publishError(payload.correlationId, error);
+  }
+};
+
+export const handleCancelOrder = async (
+  engineManager: EngineManager,
+  payload: CancelOrderCommand,
+) => {
+  try {
+    const engine = engineManager.get(payload.market);
+    if (!engine) throw new EngineError(404, "Market not found");
+
+    const result = await engine.cancelOrder(payload.userId, payload.orderId);
 
     await publishSuccess(payload.correlationId, result);
   } catch (error) {

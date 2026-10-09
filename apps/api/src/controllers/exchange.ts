@@ -1,5 +1,10 @@
 import type { Request, Response } from "express";
-import { onrampSchema, orderSchema, withdrawSchema } from "@perpex/schemas";
+import {
+  cancelOrderSchema,
+  onrampSchema,
+  orderSchema,
+  withdrawSchema,
+} from "@perpex/schemas";
 import { requestEngine } from "../utils/request-engine";
 
 export const createOrder = async (req: Request, res: Response) => {
@@ -29,6 +34,21 @@ export const createOrder = async (req: Request, res: Response) => {
         };
 
   const result = await requestEngine(command);
+
+  res
+    .status(result.ok ? 200 : 400)
+    .json(result.ok ? result.data : { error: result.error });
+};
+
+export const cancelOrder = async (req: Request, res: Response) => {
+  const { market, orderId } = cancelOrderSchema.parse(req.body);
+
+  const result = await requestEngine({
+    userId: req.user.id,
+    market,
+    orderId,
+    messageType: "cancel-order",
+  });
 
   res
     .status(result.ok ? 200 : 400)

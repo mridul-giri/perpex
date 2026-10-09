@@ -1,13 +1,21 @@
 import { publishToStream } from "@perpex/redis";
 import { config } from "@perpex/config";
 import { EngineError } from "../utils/engine-error";
+import { validateOrder } from "./validation";
 import { UserService } from "./user";
 import { MathchingEngine } from "./matching-engine";
 import { BookManager } from "./book-manager";
 import { PositionManager } from "./position-manager";
 import { SCALE, toBigInt, toString } from "../utils/conversion";
 import { totalSlippageTolerance } from "../store/store";
-import type { EngineFill, EnginePayload, EngineUser } from "@perpex/types";
+import type {
+  EngineClosedPosition,
+  EngineFill,
+  EngineMakerFill,
+  EnginePayload,
+  EngineUser,
+  Order,
+} from "@perpex/types";
 
 export class OrderBook {
   private book = new BookManager();
@@ -33,14 +41,10 @@ export class OrderBook {
     const user = this.userService.getUser(payload.userId);
     if (!user) throw new EngineError(404, "User not found");
 
-    if (payload.leverage <= 0)
-      throw new EngineError(400, "Leverage must be greater than zero");
+    validateOrder(payload);
 
-    if (!payload.price) {
-      throw new EngineError(404, "Price must be greater than zero ");
-    }
-
-    const { price: entryPrice, quantity, leverage } = payload;
+    const entryPrice = payload.price!;
+    const { quantity, leverage } = payload;
 
     const lockedCollateral = await this.calculateCollateral(
       entryPrice,
@@ -67,24 +71,32 @@ export class OrderBook {
     );
     console.log("[Limit-Result]:", result);
 
-    for (const fill of result.fills) {
+    for (let i = 0; i < result.fills.length; i++) {
+      const fill = result.fills[i]!;
+      const makerFill = result.makerFills[i]!;
+
       await this.publishFill(fill);
 
-      await this.handlePosition(
+      const takerClosed = this.positionManager.applyFill(
         user,
         payload,
         fill,
-        lockedCollateral,
-        result.actualCollateralUsed,
+        this.fillMargin(fill, payload.leverage),
       );
+      if (takerClosed) await this.publishClosedPosition(takerClosed);
+
+      await this.handleMakerFill(makerFill, fill);
     }
 
     this.userService.releaseCollateral(user, result.surplus);
+    await this.publishBalanceUpdate(payload.userId, user);
 
     console.log("After-release-outer", user.collateral);
 
     if (result.remainingQuantity > 0n) {
       const filledOrder = payload.quantity - result.remainingQuantity;
+      const remainingMargin =
+        (entryPrice * result.remainingQuantity) / (SCALE * BigInt(leverage));
 
       this.book.placeIntoSide(
         payload.side,
@@ -93,13 +105,25 @@ export class OrderBook {
         payload.userId,
         result.remainingQuantity,
         filledOrder,
+        remainingMargin,
+        leverage,
       );
     }
 
     console.log("[Limit-Asks]", this.book.getAsks());
     console.log("[Limit-Bids]", this.book.getBids());
 
-    this.publishOrderUpdated(orderId, result.status);
+    await this.publishOrderUpdated({
+      orderId,
+      userId: payload.userId,
+      market: payload.market,
+      type: payload.type,
+      side: payload.side,
+      price: payload.price !== undefined ? toString(payload.price) : undefined,
+      quantity: toString(payload.quantity),
+      filledQuantity: toString(payload.quantity - result.remainingQuantity),
+      status: result.status,
+    });
 
     return {
       orderId,
@@ -114,8 +138,7 @@ export class OrderBook {
     const user = this.userService.getUser(payload.userId);
     if (!user) throw new EngineError(404, "User not found");
 
-    if (payload.leverage <= 0)
-      throw new EngineError(400, "Leverage must be greater than zero");
+    validateOrder(payload);
 
     const bestPrice =
       payload.side === "LONG"
@@ -161,16 +184,40 @@ export class OrderBook {
     );
     console.log("market result:", result);
 
-    for (const fill of result.fills) {
+    for (let i = 0; i < result.fills.length; i++) {
+      const fill = result.fills[i]!;
+      const makerFill = result.makerFills[i]!;
+
       await this.publishFill(fill);
+
+      const takerClosed = this.positionManager.applyFill(
+        user,
+        payload,
+        fill,
+        this.fillMargin(fill, payload.leverage),
+      );
+      if (takerClosed) await this.publishClosedPosition(takerClosed);
+
+      await this.handleMakerFill(makerFill, fill);
     }
 
     this.userService.releaseCollateral(user, result.surplus);
+    await this.publishBalanceUpdate(payload.userId, user);
 
     console.log("market asks", this.book.getAsks());
     console.log("market bids", this.book.getBids());
 
-    this.publishOrderUpdated(orderId, result.status);
+    await this.publishOrderUpdated({
+      orderId,
+      userId: payload.userId,
+      market: payload.market,
+      type: payload.type,
+      side: payload.side,
+      price: payload.price !== undefined ? toString(payload.price) : undefined,
+      quantity: toString(payload.quantity),
+      filledQuantity: toString(payload.quantity - result.remainingQuantity),
+      status: result.status,
+    });
 
     return {
       orderId,
@@ -178,6 +225,73 @@ export class OrderBook {
       quantity: toString(payload.quantity),
       filledQuantity: toString(payload.quantity - result.remainingQuantity),
     };
+  }
+
+  async cancelOrder(userId: string, orderId: string) {
+    const removed = this.book.removeOrder(orderId, userId);
+
+    if (!removed) {
+      throw new EngineError(404, "Order not found");
+    }
+
+    const user = this.userService.getUser(userId);
+    if (!user) throw new EngineError(404, "User not found");
+
+    this.userService.unlockCollateral(user, removed.margin);
+
+    await this.publishOrderCancelled(orderId);
+
+    return {
+      orderId,
+      status: "Cancelled",
+      releasedMargin: toString(removed.margin),
+    };
+  }
+
+  private fillMargin(fill: EngineFill, leverage: number) {
+    return (fill.price * fill.quantity) / (SCALE * BigInt(leverage));
+  }
+
+  private async handleMakerFill(makerFill: EngineMakerFill, fill: EngineFill) {
+    const makerUser = this.userService.getUser(makerFill.makerUserId);
+    if (!makerUser) return;
+
+    const makerPayload: EnginePayload = {
+      userId: makerFill.makerUserId,
+      market: fill.market,
+      side: makerFill.makerSide,
+      quantity: makerFill.quantity,
+      leverage: makerFill.makerLeverage,
+      correlationId: undefined,
+      type: "LIMIT",
+      price: makerFill.price,
+      slippageTolerance: undefined,
+    };
+
+    const closed = this.positionManager.applyFill(
+      makerUser,
+      makerPayload,
+      fill,
+      makerFill.makerMargin,
+    );
+    if (closed) await this.publishClosedPosition(closed);
+
+    await this.publishBalanceUpdate(makerFill.makerUserId, makerUser);
+
+    await this.publishOrderUpdated({
+      orderId: makerFill.makerOrderId,
+      userId: makerFill.makerUserId,
+      market: fill.market,
+      type: "LIMIT",
+      side: makerFill.makerSide,
+      price: toString(makerFill.price),
+      quantity: toString(
+        makerFill.makerFilledQuantity + makerFill.makerRemainingQuantity,
+      ),
+      filledQuantity: toString(makerFill.makerFilledQuantity),
+      status:
+        makerFill.makerRemainingQuantity === 0n ? "Filled" : "PartiallyFilled",
+    });
   }
 
   private async publishOrderCreated(orderId: string, payload: EnginePayload) {
@@ -208,95 +322,50 @@ export class OrderBook {
     });
   }
 
-  private async handlePosition(
-    user: EngineUser,
-    payload: EnginePayload,
-    fill: EngineFill,
-    lockedCollateral: bigint,
-    actualCollateralUsed: bigint,
-  ) {
-    const position = await this.positionManager.getPosition(user, payload);
-
-    if (!position) {
-      await this.positionManager.createPosition(
-        user,
-        payload,
-        fill,
-        payload.leverage,
-        lockedCollateral,
-      );
-      console.log("[New-Position]", user.positions);
-    } else {
-      if (payload.side === position.side) {
-        await this.positionManager.updatePosition(
-          position,
-          payload,
-          fill,
-          actualCollateralUsed,
-        );
-
-        console.log("[Position-if-both-side-same]", user.positions);
-      } else {
-        const closeQty =
-          fill.quantity < position.quantity ? fill.quantity : position.quantity;
-        const remainingFillQty = fill.quantity - closeQty;
-        const remainingPositionQty = position.quantity - closeQty;
-
-        console.log(
-          `close qty: ${closeQty}, remaining fill qty: ${remainingFillQty}, reamaining postn qty: ${remainingPositionQty}`,
-        );
-
-        if (remainingFillQty === 0n && remainingPositionQty === 0n) {
-          this.positionManager.closePosition(
-            fill,
-            position,
-            closeQty,
-            actualCollateralUsed,
-            user,
-            this.userService.releaseCollateral,
-            this.userService.addPnl,
-            this.userService.deleteOpenPosition,
-            payload.userId,
-          );
-        }
-
-        if (remainingPositionQty > 0n) {
-          this.positionManager.partiallyClosePosition(
-            user,
-            position,
-            fill,
-            actualCollateralUsed,
-            payload,
-            remainingPositionQty,
-            closeQty,
-            this.userService.releaseCollateral,
-            this.userService.addPnl,
-          );
-        }
-
-        // TODO: Complete this end to end
-        if (remainingFillQty > 0n) {
-          console.log(
-            "first close some position and then open opposite position",
-          );
-        }
-      }
-    }
-  }
-
   private async calculateCollateral(
     price: bigint,
     quantity: bigint,
     leverage: number,
   ) {
-    return (price * quantity) / BigInt(leverage);
+    return (price * quantity) / (SCALE * BigInt(leverage));
   }
 
-  private async publishOrderUpdated(orderId: string, status: string) {
+  private async publishOrderUpdated(order: Order) {
+    await publishToStream(config.ORDERS_ACK, {
+      ...order,
+      messageType: "order-updated",
+    });
+  }
+
+  private async publishOrderCancelled(orderId: string) {
     await publishToStream(config.ORDERS_ACK, {
       orderId,
-      status,
-      messageType: "order-updated",
+      status: "Cancelled",
+      messageType: "order-cancelled",
+    });
+  }
+
+  private async publishBalanceUpdate(userId: string, user: EngineUser) {
+    await publishToStream(config.ORDERS_ACK, {
+      userId,
+      available: toString(user.collateral.availableBalance),
+      locked: toString(user.collateral.lockedBalance),
+      messageType: "balance-updated",
+    });
+  }
+
+  private async publishClosedPosition(closed: EngineClosedPosition) {
+    await publishToStream(config.ORDERS_ACK, {
+      userId: closed.userId,
+      market: closed.market,
+      side: closed.side,
+      quantity: toString(closed.quantity),
+      averagePrice: toString(closed.averagePrice),
+      exitPrice: toString(closed.exitPrice),
+      liquidationPrice: toString(closed.liquidationPrice),
+      margin: toString(closed.margin),
+      realizedPnl: toString(closed.realizedPnl),
+      messageType: "position-closed",
     });
   }
 

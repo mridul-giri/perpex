@@ -2,40 +2,28 @@ export type OrderType = "LIMIT" | "MARKET";
 export type OrderSide = "LONG" | "SHORT";
 export type OrderStatus = "Open" | "Filled" | "PartiallyFilled" | "Cancelled";
 
-export interface User {
-  collateral: Collateral;
-  positions: Position[];
-}
-
-export interface Collateral {
-  availableBalance: string;
-  lockedBalance: string;
-}
-
-//TODO: this should store in db
-export interface Position {
-  userId: string;
-  market: string; //TODO: "change it to marketId and store market id here"
-  positionType: OrderType;
-  side: OrderSide;
-  quantity: string;
-  averagePrice: string;
-  liquidationPrice: string;
-  margin: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
 export interface Order {
   orderId: string;
   userId: string;
   market: string;
   type: OrderType;
   side: OrderSide;
-  price: string;
+  price?: string;
   quantity: string;
   filledQuantity: string;
   status: OrderStatus;
+}
+
+export interface ClosedPosition {
+  userId: string;
+  market: string;
+  side: OrderSide;
+  quantity: string;
+  averagePrice: string;
+  exitPrice: string;
+  liquidationPrice: string;
+  margin: string;
+  realizedPnl: string;
 }
 
 export interface CreateOrderCommand {
@@ -51,29 +39,10 @@ export interface CreateOrderCommand {
   slippageTolerance: number | undefined;
 }
 
-export interface Bids {
-  openOrders: OpenOrder[];
-}
-
-export interface Asks {
-  openOrders: OpenOrder[];
-}
-
-export interface OpenOrder {
+export interface CancelOrderCommand {
   userId: string;
-  orderId: string;
-  quantity: string;
-  filledQuantity: string;
-  createdAt: number;
-}
-
-export interface Fill {
-  makerUserId: string;
-  takerUserId: string;
-  makerOrderId: string;
-  takerOrderId: string;
+  messageType: "cancel-order";
   market: string;
-  quantity: string;
-  price: string;
-  takerSide: OrderSide;
+  orderId: string;
+  correlationId: string;
 }

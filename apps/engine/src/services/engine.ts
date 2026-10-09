@@ -23,4 +23,8 @@ export class Engine {
   addOrder(payload: EnginePayload) {
     return this.orderBook.addOrder(payload);
   }
+
+  cancelOrder(userId: string, orderId: string) {
+    return this.orderBook.cancelOrder(userId, orderId);
+  }
 }

@@ -1,4 +1,4 @@
-import type { OrderSide, OrderStatus, OrderType } from "./exchange";
+import type { OrderSide, OrderType } from "./exchange";
 
 export interface EnginePayload {
   userId: string;
@@ -21,7 +21,6 @@ export interface EngineCollateral {
 export interface EnginePosition {
   userId: string;
   market: string;
-  positionType: OrderType;
   side: OrderSide;
   quantity: bigint;
   averagePrice: bigint;
@@ -33,7 +32,7 @@ export interface EnginePosition {
 
 export interface EngineUser {
   collateral: EngineCollateral;
-  positions: EnginePosition[];
+  positions: Map<string, EnginePosition>;
 }
 
 export interface EngineOpenOrder {
@@ -41,23 +40,13 @@ export interface EngineOpenOrder {
   orderId: string;
   quantity: bigint;
   filledQuantity: bigint;
+  margin: bigint;
+  leverage: number;
   createdAt: number;
 }
 
 export interface EngineSide {
   openOrders: EngineOpenOrder[];
-}
-
-export interface EngineOrder {
-  orderId: string;
-  userId: string;
-  market: string;
-  type: OrderType;
-  side: OrderSide;
-  price: bigint;
-  quantity: bigint;
-  filledQuantity: bigint;
-  status: OrderStatus;
 }
 
 export interface EngineFill {
@@ -69,4 +58,28 @@ export interface EngineFill {
   quantity: bigint;
   price: bigint;
   takerSide: OrderSide;
+}
+
+export interface EngineMakerFill {
+  makerUserId: string;
+  makerOrderId: string;
+  makerSide: OrderSide;
+  makerLeverage: number;
+  makerMargin: bigint;
+  makerFilledQuantity: bigint;
+  makerRemainingQuantity: bigint;
+  quantity: bigint;
+  price: bigint;
+}
+
+export interface EngineClosedPosition {
+  userId: string;
+  market: string;
+  side: OrderSide;
+  quantity: bigint;
+  averagePrice: bigint;
+  exitPrice: bigint;
+  liquidationPrice: bigint;
+  margin: bigint;
+  realizedPnl: bigint;
 }

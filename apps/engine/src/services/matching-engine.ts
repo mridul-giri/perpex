@@ -1,4 +1,11 @@
-import type { EngineFill, EnginePayload, EngineSide } from "@perpex/types";
+import type {
+  EngineFill,
+  EngineMakerFill,
+  EnginePayload,
+  EngineSide,
+  OrderStatus,
+} from "@perpex/types";
+import { SCALE } from "../utils/conversion";
 
 export class MathchingEngine {
   matchLimitOrder(
@@ -13,7 +20,9 @@ export class MathchingEngine {
   ) {
     let orderQuantity = payload.quantity;
     let totalFilledValue = 0n;
+    let usedCollateral = 0n;
     const fills: EngineFill[] = [];
+    const makerFills: EngineMakerFill[] = [];
 
     const oppositeSide = payload.side === "LONG" ? asks : bids;
     const sortedPrice = payload.side === "LONG" ? asksPrices : bidsPrices;
@@ -36,9 +45,7 @@ export class MathchingEngine {
       }
 
       const openOrder = priceData.openOrders[0];
-      if (!openOrder || openOrder?.userId === payload.userId) {
-        break; //TODO: need to change this
-      }
+      if (!openOrder) break;
 
       const filledQty =
         orderQuantity < openOrder.quantity ? orderQuantity : openOrder.quantity;
@@ -55,9 +62,26 @@ export class MathchingEngine {
       });
 
       totalFilledValue += bestPrice * filledQty;
+      usedCollateral += (bestPrice * filledQty) / (SCALE * leverage);
+
+      const consumedMargin =
+        (openOrder.margin * filledQty) / openOrder.quantity;
+
+      makerFills.push({
+        makerUserId: openOrder.userId,
+        makerOrderId: openOrder.orderId,
+        makerSide: payload.side === "LONG" ? "SHORT" : "LONG",
+        makerLeverage: openOrder.leverage,
+        makerMargin: consumedMargin,
+        makerFilledQuantity: openOrder.filledQuantity + filledQty,
+        makerRemainingQuantity: openOrder.quantity - filledQty,
+        quantity: filledQty,
+        price: bestPrice,
+      });
 
       openOrder.quantity -= filledQty;
       openOrder.filledQuantity += filledQty;
+      openOrder.margin -= consumedMargin;
 
       if (openOrder.quantity <= 0n) {
         priceData.openOrders.splice(0, 1);
@@ -72,7 +96,7 @@ export class MathchingEngine {
     }
     const filledQuantity = payload.quantity - orderQuantity;
 
-    let status = null;
+    let status: OrderStatus = "Open";
 
     if (orderQuantity === 0n) {
       status = "Filled";
@@ -82,15 +106,15 @@ export class MathchingEngine {
       status = "Open";
     }
 
-    const actualCollateralUsed = totalFilledValue / leverage;
-    const remainingCollateral = (entryPrice * orderQuantity) / leverage;
+    const actualCollateralUsed = usedCollateral;
+    const remainingCollateral =
+      (entryPrice * orderQuantity) / (SCALE * leverage);
     const surplus =
       lockedCollateral - actualCollateralUsed - remainingCollateral;
 
-    console.log("asks", asks.get(entryPrice));
-
     return {
       fills,
+      makerFills,
       remainingQuantity: orderQuantity,
       totalFilledValue,
       surplus,
@@ -111,7 +135,9 @@ export class MathchingEngine {
   ) {
     let orderQuantity = payload.quantity;
     let totalFilledValue = 0n;
+    let usedCollateral = 0n;
     const fills: EngineFill[] = [];
+    const makerFills: EngineMakerFill[] = [];
 
     const oppositeSide = payload.side === "LONG" ? asks : bids;
     const sortedPrice = payload.side === "LONG" ? asksPrices : bidsPrices;
@@ -135,9 +161,7 @@ export class MathchingEngine {
       }
 
       const openOrder = priceData.openOrders[0];
-      if (!openOrder || openOrder.userId === payload.userId) {
-        break; //TODO: need to change this
-      }
+      if (!openOrder) break;
 
       const filledQty =
         orderQuantity < openOrder.quantity ? orderQuantity : openOrder.quantity;
@@ -154,9 +178,26 @@ export class MathchingEngine {
       });
 
       totalFilledValue += bestPrice * filledQty;
+      usedCollateral += (bestPrice * filledQty) / (SCALE * leverage);
+
+      const consumedMargin =
+        (openOrder.margin * filledQty) / openOrder.quantity;
+
+      makerFills.push({
+        makerUserId: openOrder.userId,
+        makerOrderId: openOrder.orderId,
+        makerSide: payload.side === "LONG" ? "SHORT" : "LONG",
+        makerLeverage: openOrder.leverage,
+        makerMargin: consumedMargin,
+        makerFilledQuantity: openOrder.filledQuantity + filledQty,
+        makerRemainingQuantity: openOrder.quantity - filledQty,
+        quantity: filledQty,
+        price: bestPrice,
+      });
 
       openOrder.quantity -= filledQty;
       openOrder.filledQuantity += filledQty;
+      openOrder.margin -= consumedMargin;
 
       if (openOrder.quantity <= 0n) {
         priceData.openOrders.splice(0, 1);
@@ -170,7 +211,7 @@ export class MathchingEngine {
       orderQuantity -= filledQty;
     }
 
-    let status = null;
+    let status: OrderStatus = "Open";
 
     if (orderQuantity === 0n) {
       status = "Filled";
@@ -178,14 +219,16 @@ export class MathchingEngine {
       status = "Cancelled";
     }
 
-    const actualCollateralUsed = totalFilledValue / leverage;
+    const actualCollateralUsed = usedCollateral;
     const surplus = lockedCollateral - actualCollateralUsed;
 
     return {
       fills,
+      makerFills,
       remainingQuantity: orderQuantity,
       totalFilledValue,
       surplus,
+      actualCollateralUsed,
       status,
     };
   }

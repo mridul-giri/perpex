@@ -23,6 +23,8 @@ export class BookManager {
     userId: string,
     quantity: bigint,
     filledQuantity: bigint,
+    margin: bigint,
+    leverage: number,
   ) {
     const existing =
       side === "LONG" ? this.bids.get(price) : this.asks.get(price);
@@ -33,6 +35,8 @@ export class BookManager {
       orderId,
       quantity,
       filledQuantity,
+      margin,
+      leverage,
       createdAt: Date.now(),
     };
 
@@ -45,6 +49,37 @@ export class BookManager {
     }
 
     side === "LONG" ? this.sortBids() : this.sortAsks();
+  }
+
+  removeOrder(orderId: string, userId: string) {
+    const sides: { side: OrderSide; levels: Map<bigint, EngineSide> }[] = [
+      { side: "LONG", levels: this.bids },
+      { side: "SHORT", levels: this.asks },
+    ];
+
+    for (const { side, levels } of sides) {
+      for (const [price, level] of levels.entries()) {
+        const index = level.openOrders.findIndex(
+          (order) => order.orderId === orderId && order.userId === userId,
+        );
+
+        if (index === -1) continue;
+
+        const removed = level.openOrders.splice(index, 1)[0];
+        if (!removed) continue;
+
+        if (level.openOrders.length === 0) {
+          levels.delete(price);
+          const prices = side === "LONG" ? this.bidsPrices : this.asksPrices;
+          const priceIndex = prices.indexOf(price);
+          if (priceIndex !== -1) prices.splice(priceIndex, 1);
+        }
+
+        return removed;
+      }
+    }
+
+    return null;
   }
 
   private sortBids() {
@@ -67,6 +102,8 @@ export class BookManager {
           orderId: "105",
           quantity: toBigInt("1"),
           filledQuantity: 0n,
+          margin: 0n,
+          leverage: 10,
           createdAt: Date.now(),
         },
         {
@@ -74,6 +111,8 @@ export class BookManager {
           orderId: "106",
           quantity: toBigInt("1"),
           filledQuantity: 0n,
+          margin: 0n,
+          leverage: 10,
           createdAt: Date.now(),
         },
       ],
@@ -85,6 +124,8 @@ export class BookManager {
           orderId: "107",
           quantity: toBigInt("1"),
           filledQuantity: 0n,
+          margin: 0n,
+          leverage: 10,
           createdAt: Date.now(),
         },
         {
@@ -92,6 +133,8 @@ export class BookManager {
           orderId: "110",
           quantity: toBigInt("2"),
           filledQuantity: 0n,
+          margin: 0n,
+          leverage: 10,
           createdAt: Date.now(),
         },
       ],
@@ -103,6 +146,8 @@ export class BookManager {
           orderId: "101",
           quantity: toBigInt("1"),
           filledQuantity: 0n,
+          margin: 0n,
+          leverage: 10,
           createdAt: Date.now(),
         },
       ],
@@ -114,6 +159,8 @@ export class BookManager {
           orderId: "103",
           quantity: toBigInt("2"),
           filledQuantity: 0n,
+          margin: 0n,
+          leverage: 10,
           createdAt: Date.now(),
         },
         {
@@ -121,6 +168,8 @@ export class BookManager {
           orderId: "109",
           quantity: toBigInt("1"),
           filledQuantity: 0n,
+          margin: 0n,
+          leverage: 10,
           createdAt: Date.now(),
         },
       ],
@@ -132,6 +181,8 @@ export class BookManager {
           orderId: "104",
           quantity: toBigInt("2"),
           filledQuantity: 0n,
+          margin: 0n,
+          leverage: 10,
           createdAt: Date.now(),
         },
       ],
