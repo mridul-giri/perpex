@@ -1,6 +1,6 @@
 import type { OrderSide } from "@perpex/types";
 import type { EngineSide } from "@perpex/types";
-import { toBigInt } from "../utils/conversion";
+import { toBigInt, toString } from "../utils/conversion";
 
 export interface BookState {
   bids: Map<bigint, EngineSide>;
@@ -9,6 +9,11 @@ export interface BookState {
   asksPrices: bigint[];
   markPrice: bigint | undefined;
   indexPrice: bigint | undefined;
+}
+
+export interface Depth {
+  bids: [string, string][];
+  asks: [string, string][];
 }
 
 export class BookManager {
@@ -61,6 +66,34 @@ export class BookManager {
 
   getIndexPrice() {
     return this.indexPrice;
+  }
+
+  getDepth(): Depth {
+    return {
+      bids: this.pricesToLevels(this.bidsPrices, this.bids),
+      asks: this.pricesToLevels(this.asksPrices, this.asks),
+    };
+  }
+
+  private pricesToLevels(
+    prices: bigint[],
+    levels: Map<bigint, EngineSide>,
+  ): [string, string][] {
+    const depth: [string, string][] = [];
+
+    for (const price of prices) {
+      const level = levels.get(price);
+      if (!level) continue;
+
+      const quantity = level.openOrders.reduce(
+        (total, order) => total + order.quantity,
+        0n,
+      );
+
+      depth.push([toString(price), toString(quantity)]);
+    }
+
+    return depth;
   }
 
   placeIntoSide(

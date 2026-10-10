@@ -3,6 +3,7 @@ import type { BookState } from "./book-manager";
 import { UserService } from "./user";
 import { MathchingEngine } from "./matching-engine";
 import { PositionManager } from "./position-manager";
+import { publishDepth } from "../commands/publish";
 import type {
   EnginePayload,
   EnginePosition,
@@ -31,12 +32,16 @@ export class Engine {
     return this.market;
   }
 
-  addOrder(payload: EnginePayload) {
-    return this.orderBook.addOrder(payload);
+  async addOrder(payload: EnginePayload) {
+    const result = await this.orderBook.addOrder(payload);
+    await this.publishDepth();
+    return result;
   }
 
-  cancelOrder(userId: string, orderId: string) {
-    return this.orderBook.cancelOrder(userId, orderId);
+  async cancelOrder(userId: string, orderId: string) {
+    const result = await this.orderBook.cancelOrder(userId, orderId);
+    await this.publishDepth();
+    return result;
   }
 
   setMarkPrice(price: bigint) {
@@ -66,11 +71,21 @@ export class Engine {
     this.orderBook.importState(state.book);
   }
 
-  liquidatePosition(
+  async liquidatePosition(
     user: EngineUser,
     position: EnginePosition,
     markPrice: bigint,
   ) {
-    return this.orderBook.liquidatePosition(user, position, markPrice);
+    const result = await this.orderBook.liquidatePosition(
+      user,
+      position,
+      markPrice,
+    );
+    await this.publishDepth();
+    return result;
+  }
+
+  private publishDepth() {
+    return publishDepth(this.market.marketSlug, this.orderBook.getDepth());
   }
 }

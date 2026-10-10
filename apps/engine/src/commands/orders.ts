@@ -22,7 +22,7 @@ export const handleCreateOrder = async (
     const engine = engineManager.get(payload.market);
     if (!engine) throw new EngineError(404, "Market not found");
 
-    const result = engine.addOrder(enginePayload);
+    const result = await engine.addOrder(enginePayload);
     console.log("engine result", result);
 
     await publishSuccess(payload.correlationId, result);

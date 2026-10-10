@@ -2,6 +2,7 @@ import { publishToStream } from "@perpex/redis";
 import { config } from "@perpex/config";
 import { EngineError } from "../utils/engine-error";
 import { toString } from "../utils/conversion";
+import type { Depth } from "../services/book-manager";
 import type { EngineCollateral, Liquidation, Market } from "@perpex/types";
 
 export const publishError = async (
@@ -79,5 +80,14 @@ export const publishFunding = async (
     rate: rateBps.toString(),
     payments,
     usedInsuranceFund: toString(usedInsuranceFund),
+  });
+};
+
+export const publishDepth = async (market: string, depth: Depth) => {
+  await publishToStream(config.ORDERS_ACK, {
+    messageType: "depth",
+    market,
+    bids: depth.bids,
+    asks: depth.asks,
   });
 };

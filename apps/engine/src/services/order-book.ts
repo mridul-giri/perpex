@@ -5,7 +5,7 @@ import { validateOrder } from "./validation";
 import { UserService } from "./user";
 import { MathchingEngine } from "./matching-engine";
 import { BookManager } from "./book-manager";
-import type { BookState } from "./book-manager";
+import type { BookState, Depth } from "./book-manager";
 import { PositionManager } from "./position-manager";
 import { insuranceFund } from "./insurance-fund";
 import { publishLiquidation } from "../commands/publish";
@@ -275,6 +275,10 @@ export class OrderBook {
 
   importState(state: BookState) {
     this.book.importState(state);
+  }
+
+  getDepth(): Depth {
+    return this.book.getDepth();
   }
 
   async liquidatePosition(
