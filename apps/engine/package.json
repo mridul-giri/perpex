@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "bun --env-file=../../.env --hot run src/index.ts",
-    "start": "bun --env-file=../../.env run src/index.ts"
+    "start": "bun --env-file=../../.env run src/index.ts",
+    "seed": "bun --env-file=../../.env run src/scripts/seed.ts"
   },
   "devDependencies": {
     "@perpex/config": "workspace:*",

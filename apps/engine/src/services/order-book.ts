@@ -59,8 +59,6 @@ export class OrderBook {
 
     this.userService.lockCollateral(user, lockedCollateral);
 
-    console.log("Locked-collateral", user.collateral);
-
     const orderId = crypto.randomUUID();
     await this.publishOrderCreated(orderId, payload);
 
@@ -74,7 +72,6 @@ export class OrderBook {
       this.book.bidsPrices,
       lockedCollateral,
     );
-    console.log("[Limit-Result]:", result);
 
     for (let i = 0; i < result.fills.length; i++) {
       const fill = result.fills[i]!;
@@ -96,8 +93,6 @@ export class OrderBook {
     this.userService.releaseCollateral(user, result.surplus);
     await this.publishBalanceUpdate(payload.userId, user);
 
-    console.log("After-release-outer", user.collateral);
-
     if (result.remainingQuantity > 0n) {
       const filledOrder = payload.quantity - result.remainingQuantity;
       const remainingMargin =
@@ -114,9 +109,6 @@ export class OrderBook {
         leverage,
       );
     }
-
-    console.log("[Limit-Asks]", this.book.getAsks());
-    console.log("[Limit-Bids]", this.book.getBids());
 
     await this.publishOrderUpdated({
       orderId,
@@ -169,9 +161,6 @@ export class OrderBook {
       payload.leverage,
     );
 
-    console.log("worst case", worstCasePrice);
-    console.log("locked amount", lockedCollateral);
-
     this.userService.lockCollateral(user, lockedCollateral);
 
     const orderId = crypto.randomUUID();
@@ -187,7 +176,6 @@ export class OrderBook {
       lockedCollateral,
       worstCasePrice,
     );
-    console.log("market result:", result);
 
     for (let i = 0; i < result.fills.length; i++) {
       const fill = result.fills[i]!;
@@ -208,9 +196,6 @@ export class OrderBook {
 
     this.userService.releaseCollateral(user, result.surplus);
     await this.publishBalanceUpdate(payload.userId, user);
-
-    console.log("market asks", this.book.getAsks());
-    console.log("market bids", this.book.getBids());
 
     await this.publishOrderUpdated({
       orderId,
