@@ -28,6 +28,14 @@ export class InsuranceFund {
     this.funds.set(market, fund - amount);
     return true;
   }
+
+  exportState() {
+    return Array.from(this.funds.entries());
+  }
+
+  importState(entries: [string, bigint][]) {
+    this.funds = new Map(entries);
+  }
 }
 
 export const insuranceFund = new InsuranceFund();

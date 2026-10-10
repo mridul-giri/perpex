@@ -5,6 +5,7 @@ import { validateOrder } from "./validation";
 import { UserService } from "./user";
 import { MathchingEngine } from "./matching-engine";
 import { BookManager } from "./book-manager";
+import type { BookState } from "./book-manager";
 import { PositionManager } from "./position-manager";
 import { insuranceFund } from "./insurance-fund";
 import { publishLiquidation } from "../commands/publish";
@@ -266,6 +267,14 @@ export class OrderBook {
 
   getIndexPrice() {
     return this.book.getIndexPrice();
+  }
+
+  exportState(): BookState {
+    return this.book.exportState();
+  }
+
+  importState(state: BookState) {
+    this.book.importState(state);
   }
 
   async liquidatePosition(

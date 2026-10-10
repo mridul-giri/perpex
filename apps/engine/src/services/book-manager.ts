@@ -2,6 +2,15 @@ import type { OrderSide } from "@perpex/types";
 import type { EngineSide } from "@perpex/types";
 import { toBigInt } from "../utils/conversion";
 
+export interface BookState {
+  bids: Map<bigint, EngineSide>;
+  asks: Map<bigint, EngineSide>;
+  bidsPrices: bigint[];
+  asksPrices: bigint[];
+  markPrice: bigint | undefined;
+  indexPrice: bigint | undefined;
+}
+
 export class BookManager {
   private bids: Map<bigint, EngineSide> = new Map();
   private asks: Map<bigint, EngineSide> = new Map();
@@ -16,6 +25,26 @@ export class BookManager {
 
   getBids() {
     return this.bids;
+  }
+
+  exportState(): BookState {
+    return {
+      bids: this.bids,
+      asks: this.asks,
+      bidsPrices: this.bidsPrices,
+      asksPrices: this.asksPrices,
+      markPrice: this.markPrice,
+      indexPrice: this.indexPrice,
+    };
+  }
+
+  importState(state: BookState) {
+    this.bids = state.bids;
+    this.asks = state.asks;
+    this.bidsPrices = state.bidsPrices;
+    this.asksPrices = state.asksPrices;
+    this.markPrice = state.markPrice;
+    this.indexPrice = state.indexPrice;
   }
 
   setMarkPrice(price: bigint) {

@@ -2,6 +2,7 @@ import {
   connectRedis,
   consumeFromGroup,
   createConsumerGroup,
+  setStreamMuted,
   STREAM_READERS,
 } from "@perpex/redis";
 import { config } from "@perpex/config";
@@ -12,6 +13,13 @@ import { publishFunding } from "./commands/publish";
 import { EngineManager } from "./services/engine-manager";
 import { LiquidationManager } from "./services/liquidation";
 import { FundingManager } from "./services/funding";
+import {
+  applySnapshot,
+  loadLatestSnapshot,
+  startSnapshotSchedule,
+  takeSnapshot,
+} from "./utils/snapshot";
+import { replayMissed } from "./utils/replay";
 import { toBigInt } from "./utils/conversion";
 import type {
   AccountCommand,
@@ -28,6 +36,19 @@ const engineManager = new EngineManager();
 const liquidationManager = new LiquidationManager(engineManager);
 const fundingManager = new FundingManager();
 
+let lastHandledId: string | null = null;
+
+startSnapshotSchedule(engineManager, () => lastHandledId);
+
+const shutdown = async (signal: string) => {
+  console.log(`${signal} received; taking final snapshot`);
+  await takeSnapshot(engineManager, lastHandledId);
+  process.exit(0);
+};
+
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
 const MAX_FUNDING_RATE_BPS = 1n;
 
 const fundingRateBps = (indexPrice: bigint, markPrice: bigint) => {
@@ -39,8 +60,6 @@ const fundingRateBps = (indexPrice: bigint, markPrice: bigint) => {
 
 const { group: ENGINE_GROUP, consumer: ENGINE_CONSUMER } =
   STREAM_READERS.engine;
-
-let lastHandledId: string | null = null;
 
 const handleCommand = async (data: unknown, id: string) => {
   lastHandledId = id;
@@ -105,7 +124,28 @@ const handleCommand = async (data: unknown, id: string) => {
   }
 };
 
-await createConsumerGroup(config.ORDERS_CREATE, ENGINE_GROUP);
+const restored = await loadLatestSnapshot();
+
+await createConsumerGroup(
+  config.ORDERS_CREATE,
+  ENGINE_GROUP,
+  restored?.offset ?? "0",
+);
+
+if (restored) {
+  applySnapshot(restored, engineManager);
+  console.log("engine state restored from snapshot");
+
+  setStreamMuted(true);
+  await replayMissed(
+    config.ORDERS_CREATE,
+    ENGINE_GROUP,
+    restored.offset,
+    handleCommand,
+  );
+  setStreamMuted(false);
+}
+
 await consumeFromGroup(
   config.ORDERS_CREATE,
   ENGINE_GROUP,

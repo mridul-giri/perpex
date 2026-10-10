@@ -1,4 +1,5 @@
 import { OrderBook } from "./order-book";
+import type { BookState } from "./book-manager";
 import { UserService } from "./user";
 import { MathchingEngine } from "./matching-engine";
 import { PositionManager } from "./position-manager";
@@ -8,6 +9,11 @@ import type {
   EngineUser,
   Market,
 } from "@perpex/types";
+
+export interface EngineMarketState {
+  market: Market;
+  book: BookState;
+}
 
 export class Engine {
   private orderBook: OrderBook;
@@ -47,6 +53,17 @@ export class Engine {
 
   getIndexPrice() {
     return this.orderBook.getIndexPrice();
+  }
+
+  exportState(): EngineMarketState {
+    return {
+      market: this.market,
+      book: this.orderBook.exportState(),
+    };
+  }
+
+  importState(state: EngineMarketState) {
+    this.orderBook.importState(state.book);
   }
 
   liquidatePosition(

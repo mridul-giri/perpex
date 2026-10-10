@@ -1,14 +1,26 @@
 import type { StreamMessages } from "@perpex/types";
 import { publisher, subscriber } from "./client";
 
+let muted = false;
+
+export const setStreamMuted = (value: boolean) => {
+  muted = value;
+};
+
 export const publishToStream = async (streamKey: string, payload: any) => {
+  if (muted) return null;
+
   const data = JSON.stringify(payload);
   return await publisher.xAdd(streamKey, "*", { data });
 };
 
-export const createConsumerGroup = async (streamKey: string, group: string) => {
+export const createConsumerGroup = async (
+  streamKey: string,
+  group: string,
+  startId = "0",
+) => {
   try {
-    await publisher.xGroupCreate(streamKey, group, "0", { MKSTREAM: true });
+    await publisher.xGroupCreate(streamKey, group, startId, { MKSTREAM: true });
   } catch (error) {
     if (!(error instanceof Error) || !error.message.includes("BUSYGROUP")) {
       throw error;
@@ -59,6 +71,37 @@ export const consumeFromGroup = async (
       console.error(`Redis consumer crashed: ${error}`);
     }
   }
+};
+
+export const getGroupOffset = async (
+  streamKey: string,
+  group: string,
+): Promise<string | null> => {
+  try {
+    const groups = await subscriber.xInfoGroups(streamKey);
+    const match = groups.find((entry) => entry.name === group);
+    if (!match) return null;
+    return String(match["last-delivered-id"]);
+  } catch {
+    return null;
+  }
+};
+
+export const readStreamRange = async (
+  streamKey: string,
+  startId: string,
+  endId: string,
+): Promise<{ id: string; data: unknown }[]> => {
+  const entries = await subscriber.xRange(streamKey, `(${startId}`, endId);
+  const messages: { id: string; data: unknown }[] = [];
+
+  for (const entry of entries) {
+    const raw = entry.message.data;
+    if (typeof raw !== "string") continue;
+    messages.push({ id: entry.id, data: JSON.parse(raw) });
+  }
+
+  return messages;
 };
 
 export const consumeStream = async (
