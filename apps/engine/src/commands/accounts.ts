@@ -1,8 +1,13 @@
 import { UserService } from "../services/user";
 import { Users } from "../store/store";
-import { toBigInt } from "../utils/conversion";
-import { publishBalance, publishBalanceUpdate, publishError } from "./publish";
-import type { AccountCommand } from "@perpex/types";
+import { toBigInt, toString } from "../utils/conversion";
+import {
+  publishBalance,
+  publishBalanceUpdate,
+  publishError,
+  publishSuccess,
+} from "./publish";
+import type { AccountCommand, EnginePosition } from "@perpex/types";
 
 const userService = new UserService();
 
@@ -13,11 +18,30 @@ export const storeUser = (payload: { userId: string }) => {
   });
 };
 
+const serializePosition = (position: EnginePosition) => ({
+  market: position.market,
+  side: position.side,
+  quantity: toString(position.quantity),
+  averagePrice: toString(position.averagePrice),
+  liquidationPrice: toString(position.liquidationPrice),
+  margin: toString(position.margin),
+  createdAt: position.createdAt,
+  updatedAt: position.updatedAt,
+});
+
 export const handleAccountCommand = async (command: AccountCommand) => {
   try {
     if (command.messageType === "get-balance") {
       const balance = userService.getBalance(command.userId);
       await publishBalance(command.correlationId, balance);
+      return;
+    }
+
+    if (command.messageType === "get-positions") {
+      const positions = userService.getPositions(command.userId);
+      await publishSuccess(command.correlationId, {
+        positions: positions.map(serializePosition),
+      });
       return;
     }
 

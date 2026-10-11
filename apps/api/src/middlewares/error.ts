@@ -1,14 +1,14 @@
 import type { Request, Response, NextFunction } from "express";
 import { forgetWrite } from "@perpex/redis";
-import { parseError } from "../utils/parse-error";
+import { buildErrorBody } from "../utils/error-response";
 
 export const errorMiddleware = async (
   error: any,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction,
+  _next: NextFunction,
 ) => {
-  const [status, message] = parseError(error);
+  const { status, body } = buildErrorBody(error);
 
   const redisKey = res.locals.idempotencyKey;
 
@@ -17,5 +17,7 @@ export const errorMiddleware = async (
     await forgetWrite(redisKey).catch(() => {});
   }
 
-  res.status(status).json(message);
+  if (status >= 500) console.error("[API Error]", error);
+
+  res.status(status).json(body);
 };

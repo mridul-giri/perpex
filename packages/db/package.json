@@ -3,12 +3,17 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "refresh:candles": "bun --env-file=../../.env run scripts/refresh-candles.ts"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
   "devDependencies": {
     "@perpex/config": "workspace:*",
     "@types/bun": "latest",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
     "prisma": "^7.7.0"
   },
   "peerDependencies": {

@@ -15,6 +15,9 @@ interface EngineMessage {
   asks?: Depth["asks"];
   price?: string;
   quantity?: string;
+  markPrice?: string;
+  indexPrice?: string | null;
+  fundingRateBps?: string;
 }
 
 await connectRedis();
@@ -36,6 +39,14 @@ const handleEngineMessage = async (data: unknown) => {
       price: message.price ?? "0",
       quantity: message.quantity ?? "0",
       timestamp: Date.now(),
+    });
+  }
+
+  if (message.messageType === "mark-price") {
+    broadcast("markprice", message.market, {
+      markPrice: message.markPrice ?? "0",
+      indexPrice: message.indexPrice ?? null,
+      fundingRateBps: message.fundingRateBps ?? "0",
     });
   }
 };

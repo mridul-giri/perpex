@@ -15,7 +15,6 @@
     "@perpex/types": "workspace:*",
     "@types/bcrypt": "^6.0.0",
     "@types/bun": "latest",
-    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10"
   },
@@ -24,7 +23,6 @@
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
-    "cookie-parser": "^1.4.7",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "zod": "^4.3.6"

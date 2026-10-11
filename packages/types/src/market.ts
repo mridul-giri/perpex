@@ -22,3 +22,15 @@ export interface FundingSettlementCommand {
   messageType: "funding-settlement";
   market: string;
 }
+
+export interface GetMarketRiskCommand {
+  messageType: "get-market-risk";
+  market: string;
+  correlationId: string;
+}
+
+export interface GetDepthCommand {
+  messageType: "get-depth";
+  market: string;
+  correlationId: string;
+}

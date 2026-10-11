@@ -75,6 +75,7 @@ model Market {
 
   positions    Position[]
   liquidations Liquidation[]
+  candles      Candle[]
 }
 
 model Balance {
@@ -120,6 +121,19 @@ model Liquidation {
   market           Market   @relation(fields: [marketId], references: [id])
 
   @@index([userId])
+}
+
+model Candle {
+  marketId  String
+  timestamp DateTime
+  open      String
+  high      String
+  low       String
+  close     String
+  volume    String
+  market    Market   @relation(fields: [marketId], references: [id])
+
+  @@id([marketId, timestamp])
 }
 
 enum OrderType {

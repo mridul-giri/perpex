@@ -76,8 +76,8 @@ Nothing calls anything over HTTP. Every command and result is a message:
 
 ## Tech stack
 
-Bun · Turborepo · TypeScript · Redis Streams · PostgreSQL (Prisma) · Express (Zod
-validation) · JWT/bcrypt · `ws` for WebSockets.
+Bun · Turborepo · TypeScript · Redis Streams · PostgreSQL / TimescaleDB (Prisma) ·
+Express (Zod validation) · JWT/bcrypt · `ws` for WebSockets.
 
 ## Running it
 
@@ -113,18 +113,37 @@ Optional env: `WS_PORT`, `SNAPSHOT_INTERVAL`, `FUNDING_INTERVAL_SECONDS`,
 
 ## HTTP API
 
-Base path `/api`. Auth routes are public; exchange write routes require a JWT and
-an `Idempotency-Key` header.
+Base path `/api/v1`. Auth routes are public. Order/deposit/withdraw **write**
+routes require a JWT (`Authorization: Bearer <token>`) and an `Idempotency-Key`
+header. Account reads require the bearer token; market-data reads are public.
 
-| Method | Route                              | Description                   |
-| ------ | ---------------------------------- | ----------------------------- |
-| POST   | `/auth/signup` `/signin` `/logout` | Auth (JWT httpOnly cookie)    |
-| POST   | `/exchange/create-market`          | Register a tradable market    |
-| POST   | `/exchange/onramp`                 | Deposit collateral            |
-| POST   | `/exchange/withdraw`               | Withdraw collateral           |
-| GET    | `/exchange/balance`                | Read balance                  |
-| POST   | `/exchange/order`                  | Place a LIMIT or MARKET order |
-| DELETE | `/exchange/order`                  | Cancel an order               |
+Success responses are the bare resource (collections are `{ items, nextCursor }`).
+Errors are `{ "error": { "message" } }`.
+
+| Method | Route                              | Description                                       |
+| ------ | ---------------------------------- | ------------------------------------------------- |
+| POST   | `/auth/signup` `/signin` `/logout` | Auth (`signin` returns `{ userId, token }`)       |
+| POST   | `/admin/markets`                   | Register a tradable market                        |
+| POST   | `/account/deposits`                | Deposit collateral                                |
+| POST   | `/account/withdrawals`             | Withdraw collateral                               |
+| GET    | `/account/balance`                 | Read balance                                      |
+| GET    | `/account/positions`               | Open positions (engine)                           |
+| GET    | `/account/positions/:market`       | Single position                                   |
+| GET    | `/account/fills`                   | User fills (`?limit=&cursor=`)                    |
+| GET    | `/account/orders`                  | Order history (`?market=&status=&limit=&cursor=`) |
+| GET    | `/account/orders/:orderId`         | Single order                                      |
+| GET    | `/account/liquidations`            | Liquidation history                               |
+| POST   | `/orders`                          | Place a LIMIT or MARKET order                     |
+| DELETE | `/orders/:orderId`                 | Cancel an order (body `{ market }`)               |
+| GET    | `/markets`                         | Tradable markets                                  |
+| GET    | `/markets/:market`                 | Market detail                                     |
+| GET    | `/markets/:market/candles`         | OHLC candles (`?interval=&from=&to=&limit=`)      |
+| GET    | `/markets/:market/trades`          | Recent public trades                              |
+| GET    | `/markets/:market/orderbook`       | Order-book depth snapshot                         |
+| GET    | `/markets/:market/risk`            | Mark / index / funding                            |
+
+Candle intervals: `1m`, `5m`, `15m`, `1h`, `4h`, `1d` (Timescale continuous
+aggregates; `1m` is the raw hypertable).
 
 ## WebSocket
 
@@ -134,5 +153,5 @@ Connect to `ws://localhost:3002` and subscribe:
 { "operation": "subscribe", "channel": "depth", "symbol": "BTC_PERP" }
 ```
 
-Updates arrive as `{ "channel", "market", "data", "timestamp" }` on the `depth`
-and `trade` channels.
+Updates arrive as `{ "channel", "market", "data", "timestamp" }` on the `depth`,
+`trade` and `markprice` channels. `depth` sends a full snapshot on subscribe.

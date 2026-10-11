@@ -12,8 +12,11 @@ import { updateBalance } from "./services/balance";
 import { upsertMarket } from "./services/market";
 import { createClosedPosition } from "./services/position";
 import { createLiquidation } from "./services/liquidation";
+import { startCandleWriter, updateCandle } from "./services/candle";
 
 await connectRedis();
+
+startCandleWriter();
 
 const { group: POLLER_GROUP, consumer: POLLER_CONSUMER } =
   STREAM_READERS.poller;
@@ -38,6 +41,7 @@ async function storeToDb(data: any) {
     }
     case "fill-created": {
       await createFill(data);
+      updateCandle(data.market, data.price, data.quantity);
       break;
     }
     case "balance-updated": {

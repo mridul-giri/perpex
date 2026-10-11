@@ -1,3 +1,5 @@
+name: perpex
+
 services:
   redis:
     image: redis
@@ -6,7 +8,7 @@ services:
     volumes:
       - redisdata:/data
   postgres:
-    image: postgres:15-alpine
+    image: timescale/timescaledb:latest-pg15
     environment:
       - POSTGRES_PASSWORD=postgres
     ports:

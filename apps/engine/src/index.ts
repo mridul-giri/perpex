@@ -9,7 +9,8 @@ import { config } from "@perpex/config";
 import { handleAccountCommand, storeUser } from "./commands/accounts";
 import { handleCancelOrder, handleCreateOrder } from "./commands/orders";
 import { handleCreateMarket } from "./commands/markets";
-import { publishFunding } from "./commands/publish";
+import { handleGetDepth, handleGetMarketRisk } from "./commands/market-data";
+import { publishFunding, publishMarkPrice } from "./commands/publish";
 import { EngineManager } from "./services/engine-manager";
 import { LiquidationManager } from "./services/liquidation";
 import { FundingManager } from "./services/funding";
@@ -21,12 +22,15 @@ import {
 } from "./utils/snapshot";
 import { replayMissed } from "./utils/replay";
 import { toBigInt } from "./utils/conversion";
+import { fundingRateBps } from "./utils/funding-rate";
 import type {
   AccountCommand,
   CancelOrderCommand,
   CreateMarketCommand,
   CreateOrderCommand,
   FundingSettlementCommand,
+  GetDepthCommand,
+  GetMarketRiskCommand,
   MarkPriceCommand,
 } from "@perpex/types";
 
@@ -49,15 +53,6 @@ const shutdown = async (signal: string) => {
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
-const MAX_FUNDING_RATE_BPS = 1n;
-
-const fundingRateBps = (indexPrice: bigint, markPrice: bigint) => {
-  const premiumBps = ((indexPrice - markPrice) * 10000n) / indexPrice;
-  if (premiumBps > MAX_FUNDING_RATE_BPS) return MAX_FUNDING_RATE_BPS;
-  if (premiumBps < -MAX_FUNDING_RATE_BPS) return -MAX_FUNDING_RATE_BPS;
-  return premiumBps;
-};
-
 const { group: ENGINE_GROUP, consumer: ENGINE_CONSUMER } =
   STREAM_READERS.engine;
 
@@ -72,6 +67,7 @@ const handleCommand = async (data: unknown, id: string) => {
     case "on-ramp":
     case "withdraw":
     case "get-balance":
+    case "get-positions":
       await handleAccountCommand(data as AccountCommand);
       return;
     case "create-order":
@@ -83,14 +79,29 @@ const handleCommand = async (data: unknown, id: string) => {
     case "create-market":
       await handleCreateMarket(engineManager, data as CreateMarketCommand);
       return;
+    case "get-depth":
+      await handleGetDepth(engineManager, data as GetDepthCommand);
+      return;
+    case "get-market-risk":
+      await handleGetMarketRisk(engineManager, data as GetMarketRiskCommand);
+      return;
     case "mark-price": {
       const command = data as MarkPriceCommand;
       const engine = engineManager.get(command.market);
       if (!engine) return;
 
       const price = toBigInt(command.price);
+      const indexPrice = toBigInt(command.indexPrice);
       engine.setMarkPrice(price);
-      engine.setIndexPrice(toBigInt(command.indexPrice));
+      engine.setIndexPrice(indexPrice);
+
+      await publishMarkPrice(
+        command.market,
+        price,
+        indexPrice,
+        fundingRateBps(indexPrice, price),
+      );
+
       await liquidationManager.liquidateUnderwater(command.market, price);
       return;
     }

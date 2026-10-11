@@ -91,3 +91,18 @@ export const publishDepth = async (market: string, depth: Depth) => {
     asks: depth.asks,
   });
 };
+
+export const publishMarkPrice = async (
+  market: string,
+  markPrice: bigint,
+  indexPrice: bigint | undefined,
+  rateBps: bigint,
+) => {
+  await publishToStream(config.ORDERS_ACK, {
+    messageType: "mark-price",
+    market,
+    markPrice: toString(markPrice),
+    indexPrice: indexPrice !== undefined ? toString(indexPrice) : null,
+    fundingRateBps: rateBps.toString(),
+  });
+};

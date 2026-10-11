@@ -60,6 +60,10 @@ export class Engine {
     return this.orderBook.getIndexPrice();
   }
 
+  getDepth() {
+    return this.orderBook.getDepth();
+  }
+
   exportState(): EngineMarketState {
     return {
       market: this.market,

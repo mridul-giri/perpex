@@ -1,10 +1,16 @@
-import type { EngineUser } from "@perpex/types";
+import type { EnginePosition, EngineUser } from "@perpex/types";
 import { Users } from "../store/store";
 import { EngineError } from "../utils/engine-error";
 
 export class UserService {
   getUser(userId: string) {
     return Users.get(userId);
+  }
+
+  getPositions(userId: string): EnginePosition[] {
+    const user = this.getUser(userId);
+    if (!user) throw new EngineError(404, "User not found");
+    return [...user.positions.values()];
   }
 
   onRamp(userId: string, amount: bigint): bigint {

@@ -1,10 +1,8 @@
 import { Router } from "express";
-import authRouter from "./auth";
-import exchangeRouter from "./exchange";
+import v1Router from "./v1";
 
 const apiRouter = Router();
 
-apiRouter.use("/auth", authRouter);
-apiRouter.use("/exchange", exchangeRouter);
+apiRouter.use("/v1", v1Router);
 
 export default apiRouter;

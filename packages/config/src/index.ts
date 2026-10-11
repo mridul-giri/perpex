@@ -8,6 +8,7 @@ export const config = {
   DATABASE_URL: readRequiredEnv("DATABASE_URL"),
   PORT: Number(process.env.PORT ?? "3000"),
   WS_PORT: Number(process.env.WS_PORT ?? "3002"),
+  FRONTEND_URL: process.env.FRONTEND_URL ?? "http://localhost:3000",
   AUTH_SECRET: readRequiredEnv("AUTH_SECRET"),
   ORDERS_CREATE: readRequiredEnv("ORDERS_CREATE"),
   ORDERS_ACK: readRequiredEnv("ORDERS_ACK"),

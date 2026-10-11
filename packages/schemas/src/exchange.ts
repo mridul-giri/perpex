@@ -46,7 +46,28 @@ export const withdrawSchema = z.object({
   amount: moneyString,
 });
 
-export const cancelOrderSchema = z.object({
-  market: z.string().min(1, "Market is required"),
-  orderId: z.string().min(1, "Order id is required"),
+export const CANDLE_INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
+
+export const candlesQuerySchema = z.object({
+  interval: z.enum(CANDLE_INTERVALS).default("1m"),
+  limit: z.coerce.number().int().min(1).max(1000).default(500),
+  from: z.string().optional(),
+  to: z.string().optional(),
 });
+
+export const paginationQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(1000).default(50),
+  cursor: z.string().optional(),
+});
+
+export const ordersQuerySchema = paginationQuerySchema.extend({
+  market: z.string().optional(),
+  status: z.enum(["Open", "PartiallyFilled", "Filled", "Cancelled"]).optional(),
+});
+
+export const cancelOrderBodySchema = z.object({
+  market: z.string().min(1, "Market is required"),
+});
+
+export const marketParamSchema = z.object({ market: z.string().min(1) });
+export const orderIdParamSchema = z.object({ orderId: z.string().min(1) });

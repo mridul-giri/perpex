@@ -1,6 +1,7 @@
 import { config } from "@perpex/config";
 import { consumeStream } from "@perpex/redis";
 import type { ResolverType, ResponseType } from "@perpex/types";
+import { ApiError } from "../utils/api-error";
 
 export const pendingResolver = new Map<string, ResolverType>();
 
@@ -12,7 +13,9 @@ export const registerResolver = (
 ) => {
   const timer = setTimeout(() => {
     if (pendingResolver.has(correlationId)) {
-      pendingResolver.get(correlationId)?.reject("Engine timeout");
+      pendingResolver
+        .get(correlationId)
+        ?.reject(new ApiError(504, "Engine timeout"));
       pendingResolver.delete(correlationId);
     }
   }, timeout);
