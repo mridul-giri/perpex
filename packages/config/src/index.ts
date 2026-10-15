@@ -6,6 +6,8 @@ const readRequiredEnv = (name: string) => {
 
 export const config = {
   DATABASE_URL: readRequiredEnv("DATABASE_URL"),
+  REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
+  API_URL: process.env.API_URL ?? "http://localhost:3001",
   PORT: Number(process.env.PORT ?? "3000"),
   WS_PORT: Number(process.env.WS_PORT ?? "3002"),
   FRONTEND_URL: process.env.FRONTEND_URL ?? "http://localhost:3000",

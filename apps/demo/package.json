@@ -1,0 +1,26 @@
+{
+  "name": "demo",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "seed": "bun --env-file=../../.env run src/seed.ts",
+    "bot": "bun --env-file=../../.env run src/bot.ts"
+  },
+  "devDependencies": {
+    "@perpex/config": "workspace:*",
+    "@perpex/db": "workspace:*",
+    "@perpex/redis": "workspace:*",
+    "@perpex/types": "workspace:*",
+    "@types/bcrypt": "^6.0.0",
+    "@types/bun": "latest",
+    "@types/pg": "^8.23.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "pg": "^8.23.1"
+  }
+}

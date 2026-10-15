@@ -5,8 +5,9 @@ collateral, place leveraged long/short orders, hold positions that are settled
 against a live mark price, and pay or receive funding — all tracked by an
 in-memory matching engine and streamed to clients in real time.
 
-It's built as a **Bun + Turborepo** monorepo of independent processes that talk to
-each other only over **Redis Streams**. There is no frontend; this is the backend.
+It's built as a **Bun + Turborepo** monorepo of independent backend processes that
+talk to each other only over **Redis Streams**, plus `apps/web` — a Next.js trading
+terminal that talks to the api over REST and to the ws over WebSocket.
 
 ## What it does
 
@@ -103,8 +104,12 @@ cd apps/poller     && bun run dev
 cd apps/price-feed && bun run dev
 cd apps/ws         && bun run dev                    # :3002
 
-# seed a market + a crossing trade (engine must be running)
-cd apps/engine && bun run seed
+# seed the demo: markets + users + ladder + fills + 7d of candles, then keep it moving
+cd apps/demo && bun run seed
+cd apps/demo && bun run bot
+
+# the trading terminal (reads the same root .env)
+cd apps/web && bun run dev                           # :3000
 ```
 
 Optional env: `WS_PORT`, `SNAPSHOT_INTERVAL`, `FUNDING_INTERVAL_SECONDS`,

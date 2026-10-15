@@ -13,6 +13,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@perpex/config": "workspace:*",
     "@perpex/types": "workspace:*",
     "redis": "^5.12.1"
   }
