@@ -5,10 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
+import { ErrorNotice } from "@/components/ui/error-notice";
 import { Input } from "@/components/ui/input";
-import { setAuthData } from "@/lib/auth";
-import { DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/demo-account";
-import { apiFetch } from "@/lib/http";
+import { DEMO_ACCOUNT, signIn } from "@/lib/api/auth";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -17,15 +16,14 @@ export default function SignInPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const signIn = async (credentials: { email: string; password: string }) => {
+  const signInAndOpenTerminal = async (credentials: {
+    email: string;
+    password: string;
+  }) => {
     setError("");
     setLoading(true);
     try {
-      const res = await apiFetch<{ userId: string; token: string }>(
-        "/auth/signin",
-        { method: "POST", body: credentials },
-      );
-      setAuthData(res.token, res.userId);
+      await signIn(credentials);
       router.push("/trade/BTC");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
@@ -36,13 +34,13 @@ export default function SignInPage() {
 
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    void signIn({ email, password });
+    void signInAndOpenTerminal({ email, password });
   };
 
   const onUseDemo = () => {
-    setEmail(DEMO_EMAIL);
-    setPassword(DEMO_PASSWORD);
-    void signIn({ email: DEMO_EMAIL, password: DEMO_PASSWORD });
+    setEmail(DEMO_ACCOUNT.email);
+    setPassword(DEMO_ACCOUNT.password);
+    void signInAndOpenTerminal(DEMO_ACCOUNT);
   };
 
   return (
@@ -62,11 +60,7 @@ export default function SignInPage() {
       }
     >
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        {error && (
-          <p className="rounded-md bg-[rgb(253_75_78_/_0.12)] px-3 py-2 text-xs text-down">
-            {error}
-          </p>
-        )}
+        <ErrorNotice message={error} />
         <label className="flex flex-col gap-1.5">
           <span className="text-xs text-ink-muted">Email</span>
           <Input

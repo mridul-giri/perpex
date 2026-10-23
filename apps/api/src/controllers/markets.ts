@@ -3,7 +3,7 @@ import { prisma } from "@perpex/db";
 import { candlesQuerySchema, paginationQuerySchema } from "@perpex/schemas";
 import { queryCandles } from "../repositories/candle";
 import { requestEngine } from "../utils/request-engine";
-import { decodeCursor, encodeCursor, page } from "../utils/pagination";
+import { encodeCursor, olderThanCursor, page } from "../utils/pagination";
 import { ApiError } from "../utils/api-error";
 
 export const getCandles = async (req: Request, res: Response) => {
@@ -15,7 +15,7 @@ export const getCandles = async (req: Request, res: Response) => {
   res.json({ market, interval, candles });
 };
 
-export const getMarkets = async (_req: Request, res: Response) => {
+export const getMarkets = async (req: Request, res: Response) => {
   const markets = await prisma.market.findMany({
     orderBy: { marketSlug: "asc" },
   });
@@ -40,29 +40,21 @@ export const getMarket = async (req: Request, res: Response) => {
 };
 
 export const getOrderbook = async (req: Request, res: Response) => {
-  const result = await requestEngine({
+  const data = await requestEngine({
     market: req.params.market as string,
     messageType: "get-depth",
   });
 
-  if (!result.ok) {
-    throw new ApiError(404, result.error ?? "Orderbook unavailable");
-  }
-
-  res.json(result.data);
+  res.json(data);
 };
 
 export const getMarketRisk = async (req: Request, res: Response) => {
-  const result = await requestEngine({
+  const data = await requestEngine({
     market: req.params.market as string,
     messageType: "get-market-risk",
   });
 
-  if (!result.ok) {
-    throw new ApiError(404, result.error ?? "Market risk unavailable");
-  }
-
-  res.json(result.data);
+  res.json(data);
 };
 
 export const getTrades = async (req: Request, res: Response) => {
@@ -70,14 +62,7 @@ export const getTrades = async (req: Request, res: Response) => {
   const { limit, cursor } = paginationQuerySchema.parse(req.query);
 
   const where: any = { market: { marketSlug: market } };
-  if (cursor) {
-    const { createdAt, id } = decodeCursor(cursor);
-    where.AND = [
-      {
-        OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: id } }],
-      },
-    ];
-  }
+  if (cursor) where.AND = [olderThanCursor(cursor)];
 
   const rows = await prisma.fills.findMany({
     where,

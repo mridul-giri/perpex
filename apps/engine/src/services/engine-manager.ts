@@ -1,9 +1,6 @@
 import type { Market } from "@perpex/types";
 import { Engine } from "./engine";
 import type { EngineMarketState } from "./engine";
-import { UserService } from "./user";
-import { MathchingEngine } from "./matching-engine";
-import { PositionManager } from "./position-manager";
 import { insuranceFund } from "./insurance-fund";
 import { EngineError } from "../utils/engine-error";
 
@@ -15,7 +12,8 @@ export class EngineManager {
       throw new EngineError(409, "Market already exists");
     }
 
-    const engine = this.buildEngine(market);
+    const engine = new Engine(market);
+
     insuranceFund.seed(market.marketSlug);
     this.markets.set(market.marketSlug, engine);
     return engine;
@@ -26,28 +24,15 @@ export class EngineManager {
   }
 
   exportState(): EngineMarketState[] {
-    const states: EngineMarketState[] = [];
-    for (const engine of this.markets.values()) {
-      states.push(engine.exportState());
-    }
-    return states;
+    return [...this.markets.values()].map((engine) => engine.exportState());
   }
 
   restoreState(states: EngineMarketState[]) {
     this.markets.clear();
     for (const state of states) {
-      const engine = this.buildEngine(state.market);
+      const engine = new Engine(state.market);
       engine.importState(state);
       this.markets.set(state.market.marketSlug, engine);
     }
-  }
-
-  private buildEngine(market: Market) {
-    return new Engine(
-      market,
-      new UserService(),
-      new MathchingEngine(),
-      new PositionManager(),
-    );
   }
 }

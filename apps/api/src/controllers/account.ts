@@ -9,80 +9,86 @@ import {
   marketParamSchema,
 } from "@perpex/schemas";
 import { requestEngine } from "../utils/request-engine";
-import { decodeCursor, encodeCursor, page } from "../utils/pagination";
+import { encodeCursor, olderThanCursor, page } from "../utils/pagination";
 import { ApiError } from "../utils/api-error";
 
 export const getBalance = async (req: Request, res: Response) => {
-  const result = await requestEngine({
+  const data = await requestEngine({
     userId: req.user.id,
     messageType: "get-balance",
   });
 
-  if (!result.ok) {
-    throw new ApiError(404, result.error ?? "Balance unavailable");
-  }
-
-  res.json(result.data);
+  res.json(data);
 };
 
 export const deposit = async (req: Request, res: Response) => {
   const { amount } = onrampSchema.parse(req.body);
 
-  const result = await requestEngine({
+  const data = await requestEngine({
     userId: req.user.id,
     amount,
     messageType: "on-ramp",
   });
 
-  if (!result.ok) {
-    throw new ApiError(400, result.error ?? "Deposit failed");
-  }
-
-  res.status(201).json(result.data);
+  res.status(201).json(data);
 };
 
 export const withdraw = async (req: Request, res: Response) => {
   const { amount } = withdrawSchema.parse(req.body);
 
-  const result = await requestEngine({
+  const data = await requestEngine({
     userId: req.user.id,
     amount,
     messageType: "withdraw",
   });
 
-  if (!result.ok) {
-    throw new ApiError(400, result.error ?? "Withdraw failed");
-  }
-
-  res.status(201).json(result.data);
+  res.status(201).json(data);
 };
 
-export const getPositions = async (req: Request, res: Response) => {
-  const result = await requestEngine({
+export const getOpenPositions = async (req: Request, res: Response) => {
+  const data = await requestEngine({
     userId: req.user.id,
     messageType: "get-positions",
   });
 
-  if (!result.ok) {
-    throw new ApiError(404, result.error ?? "Positions unavailable");
-  }
+  res.json(data);
+};
 
-  res.json(result.data);
+export const getPositionHistory = async (req: Request, res: Response) => {
+  const { limit, cursor } = paginationQuerySchema.parse(req.query);
+
+  const where: any = { userId: req.user.id };
+  if (cursor) where.AND = [olderThanCursor(cursor)];
+
+  const rows = await prisma.position.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
+    include: { market: true },
+  });
+
+  const result = page(rows, limit, (last) =>
+    encodeCursor(last.createdAt, last.id),
+  );
+
+  res.json({
+    items: result.items.map(serializePosition),
+    nextCursor: result.nextCursor,
+  });
 };
 
 export const getPosition = async (req: Request, res: Response) => {
   const { market } = marketParamSchema.parse(req.params);
 
-  const position = await prisma.position.findFirst({
-    where: { userId: req.user.id, market: { marketSlug: market } },
-    include: { market: true },
-  });
+  const data = (await requestEngine({
+    userId: req.user.id,
+    messageType: "get-positions",
+  })) as { positions: { market: string }[] };
 
-  if (!position) {
-    throw new ApiError(404, "Position not found");
-  }
+  const position = data.positions.find((open) => open.market === market);
+  if (!position) throw new ApiError(404, "No open position in this market");
 
-  res.json(serializePosition(position));
+  res.json(position);
 };
 
 export const getFills = async (req: Request, res: Response) => {
@@ -92,14 +98,7 @@ export const getFills = async (req: Request, res: Response) => {
     OR: [{ makerUserId: req.user.id }, { takerUserId: req.user.id }],
   };
 
-  if (cursor) {
-    const { createdAt, id } = decodeCursor(cursor);
-    where.AND = [
-      {
-        OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: id } }],
-      },
-    ];
-  }
+  if (cursor) where.AND = [olderThanCursor(cursor)];
 
   const rows = await prisma.fills.findMany({
     where,
@@ -134,14 +133,7 @@ export const getOrders = async (req: Request, res: Response) => {
   if (market) where.market = { marketSlug: market };
   if (status) where.status = status;
 
-  if (cursor) {
-    const { createdAt, id } = decodeCursor(cursor);
-    where.AND = [
-      {
-        OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: id } }],
-      },
-    ];
-  }
+  if (cursor) where.AND = [olderThanCursor(cursor)];
 
   const rows = await prisma.order.findMany({
     where,
@@ -177,14 +169,7 @@ export const getLiquidations = async (req: Request, res: Response) => {
   const { limit, cursor } = paginationQuerySchema.parse(req.query);
 
   const where: any = { userId: req.user.id };
-  if (cursor) {
-    const { createdAt, id } = decodeCursor(cursor);
-    where.AND = [
-      {
-        OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: id } }],
-      },
-    ];
-  }
+  if (cursor) where.AND = [olderThanCursor(cursor)];
 
   const rows = await prisma.liquidation.findMany({
     where,

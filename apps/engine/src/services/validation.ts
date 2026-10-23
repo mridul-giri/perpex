@@ -1,7 +1,7 @@
-import type { EnginePayload, Market } from "@perpex/types";
+import type { EnginePayload } from "@perpex/types";
 import { EngineError } from "../utils/engine-error";
 
-export const validateOrder = (payload: EnginePayload, market?: Market) => {
+export const validateOrder = (payload: EnginePayload) => {
   if (payload.quantity <= 0n) {
     throw new EngineError(400, "Quantity must be greater than zero");
   }

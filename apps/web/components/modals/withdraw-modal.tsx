@@ -1,31 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import { useBalance } from "@/components/balance/balance-context";
 import { AmountField, Chip, StatusText } from "@/components/modals/modal-parts";
 import { Modal } from "@/components/ui/modal";
-import { fmt } from "@/lib/format";
-import { PerpexTrading } from "@/lib/trading";
+import { withdraw } from "@/lib/api/account";
+import { cleanDecimal, formatNumber } from "@/lib/format";
 
 const PERCENTS = [25, 50, 75, 100];
-const trading = new PerpexTrading();
+const CLOSE_AFTER_SUCCESS_MS = 900;
+
+const percentOf = (available: number, percent: number) =>
+  Math.floor(available * (percent / 100) * 1e8) / 1e8;
 
 export function WithdrawModal({
   open,
   onClose,
+  availableText,
+  onDone,
 }: {
   open: boolean;
   onClose: () => void;
+  availableText: string;
+  onDone: () => void;
 }) {
-  const { balance, availableNum, refresh } = useBalance();
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const amountNum = Number(amount);
-  const exceeds = amountNum > availableNum;
-  const valid = amountNum > 0 && !exceeds;
+  const available = Number(availableText);
+  const amountNumber = Number(amount);
+  const exceeds = amountNumber > available;
+  const valid = amountNumber > 0 && !exceeds;
 
   const close = () => {
     setAmount("");
@@ -34,13 +40,13 @@ export function WithdrawModal({
     onClose();
   };
 
-  const setPercent = (percent: number) => {
+  const choosePercent = (percent: number) => {
     setError("");
     if (percent === 100) {
-      setAmount(balance.availableBalance);
+      setAmount(availableText);
       return;
     }
-    const value = Math.floor(availableNum * (percent / 100) * 1e8) / 1e8;
+    const value = percentOf(available, percent);
     setAmount(value > 0 ? String(value) : "");
   };
 
@@ -56,12 +62,13 @@ export function WithdrawModal({
       );
       return;
     }
+
     setLoading(true);
     try {
-      await trading.withdraw(amount.replace(/\.$/, ""));
-      setSuccess(`Withdrew $${fmt(amountNum, 2)}.`);
-      refresh();
-      setTimeout(close, 900);
+      await withdraw(cleanDecimal(amount));
+      setSuccess(`Withdrew $${formatNumber(amountNumber, 2)}.`);
+      onDone();
+      setTimeout(close, CLOSE_AFTER_SUCCESS_MS);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Withdrawal failed.");
     } finally {
@@ -77,7 +84,9 @@ export function WithdrawModal({
       meta={
         <>
           Available ·{" "}
-          <span className="tabular text-ink/70">${fmt(availableNum, 2)}</span>
+          <span className="tabular text-ink/70">
+            ${formatNumber(available, 2)}
+          </span>
         </>
       }
     >
@@ -94,7 +103,7 @@ export function WithdrawModal({
           action={
             <button
               type="button"
-              onClick={() => setPercent(100)}
+              onClick={() => choosePercent(100)}
               className="h-7 shrink-0 cursor-pointer rounded-md bg-panel-raised px-3 text-xs font-semibold text-ink-muted transition-colors hover:text-ink"
             >
               Max
@@ -106,11 +115,11 @@ export function WithdrawModal({
             <Chip
               key={percent}
               active={
-                availableNum > 0 &&
+                available > 0 &&
                 amount !== "" &&
-                Math.abs(amountNum - availableNum * (percent / 100)) < 1e-8
+                amountNumber === percentOf(available, percent)
               }
-              onClick={() => setPercent(percent)}
+              onClick={() => choosePercent(percent)}
             >
               {percent}%
             </Chip>
@@ -130,7 +139,7 @@ export function WithdrawModal({
           {loading
             ? "Withdrawing…"
             : valid
-              ? `Withdraw $${fmt(amountNum, 2)}`
+              ? `Withdraw $${formatNumber(amountNumber, 2)}`
               : "Withdraw"}
         </button>
       </form>

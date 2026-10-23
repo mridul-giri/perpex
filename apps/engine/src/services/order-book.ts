@@ -1,241 +1,438 @@
-import { publishToStream } from "@perpex/redis";
-import { config } from "@perpex/config";
 import { EngineError } from "../utils/engine-error";
 import { validateOrder } from "./validation";
 import { UserService } from "./user";
-import { MathchingEngine } from "./matching-engine";
+import { MatchingEngine } from "./matching-engine";
+import type { Match } from "./matching-engine";
 import { BookManager } from "./book-manager";
 import type { BookState, Depth } from "./book-manager";
 import { PositionManager } from "./position-manager";
 import { insuranceFund } from "./insurance-fund";
-import { publishLiquidation } from "../commands/publish";
+import {
+  publishBalanceUpdate,
+  publishClosedPosition,
+  publishFill,
+  publishInsuranceFund,
+  publishLiquidation,
+  publishOrderCancelled,
+  publishOrderCreated,
+  publishOrderUpdated,
+} from "../events/publish";
 import { SCALE, toBigInt, toString } from "../utils/conversion";
-import { MAX_PRICE, totalSlippageTolerance } from "../store/store";
+import { marginFor } from "../utils/margin";
+import { MAX_PRICE, totalSlippageTolerance, Users } from "../store/store";
 import type {
-  EngineClosedPosition,
   EngineFill,
   EngineMakerFill,
   EnginePayload,
   EnginePosition,
   EngineUser,
-  Order,
   OrderSide,
+  OrderStatus,
 } from "@perpex/types";
 
 export class OrderBook {
   private book = new BookManager();
 
-  constructor(
-    private userService: UserService,
-    private matcher: MathchingEngine,
-    private positionManager: PositionManager,
-  ) {}
+  constructor(private readonly marketSlug: string) {}
+  private userService = new UserService();
+  private matcher = new MatchingEngine();
+  private positionManager = new PositionManager();
 
   async addOrder(payload: EnginePayload) {
-    switch (payload.type) {
-      case "LIMIT": {
-        return this.handleLimitOrder(payload);
-      }
-      case "MARKET": {
-        return this.handleMarketOrder(payload);
-      }
-    }
-  }
-
-  private async handleLimitOrder(payload: EnginePayload) {
     const user = this.userService.getUser(payload.userId);
     if (!user) throw new EngineError(404, "User not found");
 
     validateOrder(payload);
 
-    const entryPrice = payload.price!;
+    return payload.type === "LIMIT"
+      ? this.placeLimitOrder(user, payload)
+      : this.placeMarketOrder(user, payload);
+  }
+
+  private async placeLimitOrder(user: EngineUser, payload: EnginePayload) {
+    const limitPrice = payload.price!;
     const { quantity, leverage } = payload;
 
-    const lockedCollateral = await this.calculateCollateral(
-      entryPrice,
-      quantity,
-      leverage,
-    );
-
-    this.userService.lockCollateral(user, lockedCollateral);
+    const lockedMargin = marginFor(limitPrice, quantity, leverage);
+    this.userService.lockCollateral(user, lockedMargin);
 
     const orderId = crypto.randomUUID();
-    await this.publishOrderCreated(orderId, payload);
+    await publishOrderCreated(orderId, payload);
 
-    const result = this.matcher.matchLimitOrder(
-      payload,
-      entryPrice,
-      orderId,
-      this.book.getAsks(),
-      this.book.getBids(),
-      this.book.asksPrices,
-      this.book.bidsPrices,
-      lockedCollateral,
+    const result = this.matcher.match(payload, orderId, limitPrice, this.book);
+    const usedMargin = await this.settleMatches(user, payload, result.matches);
+
+    const restingMargin = marginFor(
+      limitPrice,
+      result.remainingQuantity,
+      leverage,
     );
+    const unusedMargin = lockedMargin - usedMargin - restingMargin;
+    this.userService.unlockCollateral(user, unusedMargin);
+    await publishBalanceUpdate(payload.userId, user.collateral);
 
-    for (let i = 0; i < result.fills.length; i++) {
-      const fill = result.fills[i]!;
-      const makerFill = result.makerFills[i]!;
-
-      await this.publishFill(fill);
-
-      const takerClosed = this.positionManager.applyFill(
-        user,
-        payload,
-        fill,
-        this.fillMargin(fill, payload.leverage),
-      );
-      if (takerClosed) await this.publishClosedPosition(takerClosed);
-
-      await this.handleMakerFill(makerFill, fill);
-    }
-
-    this.userService.releaseCollateral(user, result.surplus);
-    await this.publishBalanceUpdate(payload.userId, user);
+    const filledQuantity = quantity - result.remainingQuantity;
 
     if (result.remainingQuantity > 0n) {
-      const filledOrder = payload.quantity - result.remainingQuantity;
-      const remainingMargin =
-        (entryPrice * result.remainingQuantity) / (SCALE * BigInt(leverage));
-
       this.book.placeIntoSide(
         payload.side,
-        entryPrice,
+        limitPrice,
         orderId,
         payload.userId,
         result.remainingQuantity,
-        filledOrder,
-        remainingMargin,
+        filledQuantity,
+        restingMargin,
         leverage,
       );
     }
 
-    await this.publishOrderUpdated({
+    let status: OrderStatus = "Open";
+    if (result.remainingQuantity === 0n) status = "Filled";
+    else if (filledQuantity > 0n) status = "PartiallyFilled";
+
+    await publishOrderUpdated({
       orderId,
       userId: payload.userId,
       market: payload.market,
       type: payload.type,
       side: payload.side,
-      price: payload.price !== undefined ? toString(payload.price) : undefined,
-      quantity: toString(payload.quantity),
-      filledQuantity: toString(payload.quantity - result.remainingQuantity),
-      status: result.status,
+      price: toString(limitPrice),
+      quantity: toString(quantity),
+      filledQuantity: toString(filledQuantity),
+      status,
     });
 
     return {
       orderId,
-      status: result.status,
-      price: entryPrice !== undefined ? toString(entryPrice) : undefined,
-      quantity: toString(payload.quantity),
-      filledQuantity: toString(payload.quantity - result.remainingQuantity),
+      status,
+      price: toString(limitPrice),
+      quantity: toString(quantity),
+      filledQuantity: toString(filledQuantity),
     };
   }
 
-  private async handleMarketOrder(payload: EnginePayload) {
-    const user = this.userService.getUser(payload.userId);
-    if (!user) throw new EngineError(404, "User not found");
-
-    validateOrder(payload);
-
-    const bestPrice =
-      payload.side === "LONG"
-        ? this.book.asksPrices[0]
-        : this.book.bidsPrices[0];
-
-    if (!bestPrice) {
+  private async placeMarketOrder(user: EngineUser, payload: EnginePayload) {
+    const bestPrice = this.book.bestOppositePrice(payload.side);
+    if (bestPrice === undefined) {
       throw new EngineError(404, "No liquidity available");
     }
 
-    const slippageTolerance =
-      payload.slippageTolerance || totalSlippageTolerance;
-
-    const slippage = toBigInt(String(slippageTolerance));
-    const worstCasePrice =
+    const slippage = toBigInt(
+      String(payload.slippageTolerance || totalSlippageTolerance),
+    );
+    const worstPrice =
       payload.side === "LONG"
         ? (bestPrice * (SCALE + slippage)) / SCALE
         : (bestPrice * (SCALE - slippage)) / SCALE;
 
-    const lockedCollateral = await this.calculateCollateral(
-      worstCasePrice,
-      payload.quantity,
+    const openingQuantity =
+      payload.quantity - this.reducingQuantity(user, payload, payload.quantity);
+    const lockedMargin = marginFor(
+      worstPrice,
+      openingQuantity,
       payload.leverage,
     );
-
-    this.userService.lockCollateral(user, lockedCollateral);
+    this.userService.lockCollateral(user, lockedMargin);
 
     const orderId = crypto.randomUUID();
-    await this.publishOrderCreated(orderId, payload);
+    await publishOrderCreated(orderId, payload);
 
-    const result = this.matcher.matchMarketOrder(
-      payload,
-      orderId,
-      this.book.asksPrices,
-      this.book.bidsPrices,
-      this.book.getAsks(),
-      this.book.getBids(),
-      lockedCollateral,
-      worstCasePrice,
+    const result = this.matcher.match(payload, orderId, worstPrice, this.book);
+    const usedMargin = await this.settleMatches(user, payload, result.matches);
+
+    this.userService.unlockCollateral(user, lockedMargin - usedMargin);
+    await publishBalanceUpdate(payload.userId, user.collateral);
+
+    const status: OrderStatus =
+      result.remainingQuantity === 0n ? "Filled" : "Cancelled";
+    const filledQuantity = toString(
+      payload.quantity - result.remainingQuantity,
     );
 
-    for (let i = 0; i < result.fills.length; i++) {
-      const fill = result.fills[i]!;
-      const makerFill = result.makerFills[i]!;
-
-      await this.publishFill(fill);
-
-      const takerClosed = this.positionManager.applyFill(
-        user,
-        payload,
-        fill,
-        this.fillMargin(fill, payload.leverage),
-      );
-      if (takerClosed) await this.publishClosedPosition(takerClosed);
-
-      await this.handleMakerFill(makerFill, fill);
-    }
-
-    this.userService.releaseCollateral(user, result.surplus);
-    await this.publishBalanceUpdate(payload.userId, user);
-
-    await this.publishOrderUpdated({
+    await publishOrderUpdated({
       orderId,
       userId: payload.userId,
       market: payload.market,
       type: payload.type,
       side: payload.side,
-      price: payload.price !== undefined ? toString(payload.price) : undefined,
+      price: undefined,
       quantity: toString(payload.quantity),
-      filledQuantity: toString(payload.quantity - result.remainingQuantity),
-      status: result.status,
+      filledQuantity,
+      status,
     });
 
     return {
       orderId,
-      status: result.status,
+      status,
       quantity: toString(payload.quantity),
-      filledQuantity: toString(payload.quantity - result.remainingQuantity),
+      filledQuantity,
     };
   }
 
   async cancelOrder(userId: string, orderId: string) {
     const removed = this.book.removeOrder(orderId, userId);
-
-    if (!removed) {
-      throw new EngineError(404, "Order not found");
-    }
+    if (!removed) throw new EngineError(404, "Order not found");
 
     const user = this.userService.getUser(userId);
     if (!user) throw new EngineError(404, "User not found");
 
     this.userService.unlockCollateral(user, removed.margin);
-
-    await this.publishOrderCancelled(orderId);
+    await publishOrderCancelled(orderId);
 
     return {
       orderId,
       status: "Cancelled",
       releasedMargin: toString(removed.margin),
     };
+  }
+
+  async liquidatePosition(
+    user: EngineUser,
+    position: EnginePosition,
+    markPrice: bigint,
+  ) {
+    await this.cancelAllOrders(user, position.userId);
+
+    const closingSide: OrderSide = position.side === "LONG" ? "SHORT" : "LONG";
+
+    const payload: EnginePayload = {
+      userId: position.userId,
+      market: position.market,
+      side: closingSide,
+      quantity: position.quantity,
+      leverage: this.positionManager.effectiveLeverage(position),
+      correlationId: undefined,
+      type: "MARKET",
+      price: undefined,
+      slippageTolerance: undefined,
+    };
+
+    const orderId = crypto.randomUUID();
+    await publishOrderCreated(orderId, payload);
+
+    const worstPrice = closingSide === "LONG" ? MAX_PRICE : 0n;
+    const result = this.matcher.match(payload, orderId, worstPrice, this.book);
+
+    for (const { fill, maker } of result.matches) {
+      await publishFill(fill);
+      await this.settleMakerFill(maker, fill);
+    }
+
+    await publishOrderUpdated({
+      orderId,
+      userId: position.userId,
+      market: position.market,
+      type: "MARKET",
+      side: closingSide,
+      price: undefined,
+      quantity: toString(position.quantity),
+      filledQuantity: toString(position.quantity - result.remainingQuantity),
+      status: result.remainingQuantity === 0n ? "Filled" : "Cancelled",
+    });
+
+    const bankruptcyPrice =
+      this.positionManager.calculateBankruptcyPrice(position);
+
+    if (result.remainingQuantity > 0n) {
+      const leftover = await this.autoDeleverage(
+        position,
+        result.remainingQuantity,
+        bankruptcyPrice,
+        markPrice,
+      );
+      if (leftover > 0n) {
+        console.log(
+          `ADL could not fully close ${position.market} for user ${position.userId}: ${toString(leftover)} had no counterparty`,
+        );
+      }
+    }
+
+    const unfilledValue = bankruptcyPrice * result.remainingQuantity;
+    const exitPrice = (result.filledValue + unfilledValue) / position.quantity;
+
+    const pnl = this.positionManager.calculateRealizedPnl(
+      position,
+      exitPrice,
+      position.quantity,
+    );
+    const loss = -(position.margin + pnl);
+    if (loss > 0n) {
+      user.collateral.availableBalance += insuranceFund.drawUpTo(
+        position.market,
+        loss,
+      );
+      await publishInsuranceFund(
+        position.market,
+        insuranceFund.getFund(position.market),
+      );
+    }
+
+    const closed = this.positionManager.closeAtPrice(user, position, exitPrice);
+
+    if (user.collateral.availableBalance < 0n) {
+      console.log(
+        `insurance fund exhausted; uncovered loss for user ${position.userId}`,
+      );
+      user.collateral.availableBalance = 0n;
+    }
+
+    await publishClosedPosition(closed);
+    await publishBalanceUpdate(position.userId, user.collateral);
+    await publishLiquidation({
+      userId: position.userId,
+      market: position.market,
+      quantity: toString(position.quantity),
+      price: toString(exitPrice),
+      liquidationPrice: toString(position.liquidationPrice),
+      bankruptcyPrice: toString(bankruptcyPrice),
+    });
+
+    return { closed, bankruptcyPrice };
+  }
+
+  private async autoDeleverage(
+    liquidated: EnginePosition,
+    quantity: bigint,
+    bankruptcyPrice: bigint,
+    markPrice: bigint,
+  ) {
+    const candidates = this.deleverageCandidates(liquidated, markPrice);
+    let remaining = quantity;
+
+    for (const { user, position } of candidates) {
+      if (remaining === 0n) break;
+
+      const closeQuantity =
+        remaining < position.quantity ? remaining : position.quantity;
+
+      const closed = this.positionManager.closePart(
+        user,
+        position,
+        closeQuantity,
+        bankruptcyPrice,
+      );
+      if (closed) await publishClosedPosition(closed);
+      await publishBalanceUpdate(position.userId, user.collateral);
+
+      remaining -= closeQuantity;
+    }
+
+    return remaining;
+  }
+
+  private deleverageCandidates(liquidated: EnginePosition, markPrice: bigint) {
+    const oppositeSide: OrderSide =
+      liquidated.side === "LONG" ? "SHORT" : "LONG";
+    const candidates: { user: EngineUser; position: EnginePosition }[] = [];
+
+    for (const user of Users.values()) {
+      const position = user.positions.get(liquidated.market);
+      if (!position || position.side !== oppositeSide) continue;
+      candidates.push({ user, position });
+    }
+
+    const profitOf = (position: EnginePosition) =>
+      this.positionManager.calculateUnrealizedPnl(position, markPrice);
+
+    candidates.sort((a, b) => {
+      const difference = profitOf(b.position) - profitOf(a.position);
+      return difference > 0n ? 1 : difference < 0n ? -1 : 0;
+    });
+
+    return candidates;
+  }
+
+  private async cancelAllOrders(user: EngineUser, userId: string) {
+    const removed = this.book.removeOrdersOf(userId);
+
+    for (const order of removed) {
+      this.userService.unlockCollateral(user, order.margin);
+      await publishOrderCancelled(order.orderId);
+    }
+  }
+
+  private async settleMatches(
+    taker: EngineUser,
+    payload: EnginePayload,
+    matches: Match[],
+  ) {
+    let usedMargin = 0n;
+
+    for (const { fill, maker } of matches) {
+      await publishFill(fill);
+
+      const openingQuantity =
+        fill.quantity - this.reducingQuantity(taker, payload, fill.quantity);
+      const takerMargin = marginFor(
+        fill.price,
+        openingQuantity,
+        payload.leverage,
+      );
+      usedMargin += takerMargin;
+      const closed = this.positionManager.applyFill(
+        taker,
+        payload,
+        fill,
+        takerMargin,
+      );
+      if (closed) await publishClosedPosition(closed);
+
+      await this.settleMakerFill(maker, fill);
+    }
+
+    return usedMargin;
+  }
+
+  private reducingQuantity(
+    user: EngineUser,
+    payload: EnginePayload,
+    quantity: bigint,
+  ) {
+    const position = user.positions.get(payload.market);
+    if (!position || position.side === payload.side) return 0n;
+    return quantity < position.quantity ? quantity : position.quantity;
+  }
+
+  private async settleMakerFill(maker: EngineMakerFill, fill: EngineFill) {
+    const market = fill.market;
+    const makerUser = this.userService.getUser(maker.makerUserId);
+    if (!makerUser) return;
+
+    const makerPayload: EnginePayload = {
+      userId: maker.makerUserId,
+      market,
+      side: maker.makerSide,
+      quantity: maker.quantity,
+      leverage: maker.makerLeverage,
+      correlationId: undefined,
+      type: "LIMIT",
+      price: maker.price,
+      slippageTolerance: undefined,
+    };
+    const closed = this.positionManager.applyFill(
+      makerUser,
+      makerPayload,
+      fill,
+      maker.makerMargin,
+    );
+    if (closed) await publishClosedPosition(closed);
+
+    await publishBalanceUpdate(maker.makerUserId, makerUser.collateral);
+
+    await publishOrderUpdated({
+      orderId: maker.makerOrderId,
+      userId: maker.makerUserId,
+      market,
+      type: "LIMIT",
+      side: maker.makerSide,
+      price: toString(maker.price),
+      quantity: toString(
+        maker.makerFilledQuantity + maker.makerRemainingQuantity,
+      ),
+      filledQuantity: toString(maker.makerFilledQuantity),
+      status:
+        maker.makerRemainingQuantity === 0n ? "Filled" : "PartiallyFilled",
+    });
   }
 
   setMarkPrice(price: bigint) {
@@ -254,255 +451,15 @@ export class OrderBook {
     return this.book.getIndexPrice();
   }
 
+  getDepth(): Depth {
+    return this.book.getDepth();
+  }
+
   exportState(): BookState {
     return this.book.exportState();
   }
 
   importState(state: BookState) {
     this.book.importState(state);
-  }
-
-  getDepth(): Depth {
-    return this.book.getDepth();
-  }
-
-  async liquidatePosition(
-    user: EngineUser,
-    position: EnginePosition,
-    markPrice: bigint,
-  ) {
-    const closingSide: OrderSide = position.side === "LONG" ? "SHORT" : "LONG";
-
-    const payload: EnginePayload = {
-      userId: position.userId,
-      market: position.market,
-      side: closingSide,
-      quantity: position.quantity,
-      leverage: this.effectiveLeverage(position),
-      correlationId: undefined,
-      type: "MARKET",
-      price: undefined,
-      slippageTolerance: undefined,
-    };
-
-    const orderId = crypto.randomUUID();
-    await this.publishOrderCreated(orderId, payload);
-
-    const worstCasePrice = closingSide === "LONG" ? MAX_PRICE : 0n;
-
-    const result = this.matcher.matchMarketOrder(
-      payload,
-      orderId,
-      this.book.asksPrices,
-      this.book.bidsPrices,
-      this.book.getAsks(),
-      this.book.getBids(),
-      0n,
-      worstCasePrice,
-    );
-
-    for (let i = 0; i < result.fills.length; i++) {
-      const fill = result.fills[i]!;
-      const makerFill = result.makerFills[i]!;
-
-      await this.publishFill(fill);
-      await this.handleMakerFill(makerFill, fill);
-    }
-
-    const matchedValue = result.totalFilledValue;
-    const remainingValue = markPrice * result.remainingQuantity;
-    const exitPrice = (matchedValue + remainingValue) / position.quantity;
-
-    const pnl = this.positionManager.calculateRealizedPnl(
-      position,
-      exitPrice,
-      position.quantity,
-    );
-    const deficit = position.margin + pnl < 0n ? -(position.margin + pnl) : 0n;
-
-    if (deficit > 0n) {
-      if (insuranceFund.coverDeficit(position.market, deficit)) {
-        user.collateral.availableBalance += deficit;
-      } else {
-        const covered = insuranceFund.getFund(position.market);
-        insuranceFund.coverDeficit(position.market, covered);
-        user.collateral.availableBalance += covered;
-      }
-    }
-
-    const closed = this.positionManager.closeLiquidatedPosition(
-      user,
-      position,
-      exitPrice,
-    );
-
-    if (user.collateral.availableBalance < 0n) {
-      console.log(
-        `insurance fund exhausted; uncovered loss for user ${position.userId}`,
-      );
-      user.collateral.availableBalance = 0n;
-    }
-
-    const bankruptcyPrice =
-      this.positionManager.calculateBankruptcyPrice(position);
-
-    await this.publishClosedPosition(closed);
-    await this.publishBalanceUpdate(position.userId, user);
-    await publishLiquidation({
-      userId: position.userId,
-      market: position.market,
-      quantity: toString(position.quantity),
-      price: toString(exitPrice),
-      liquidationPrice: toString(position.liquidationPrice),
-      bankruptcyPrice: toString(bankruptcyPrice),
-    });
-
-    return { closed, deficit, bankruptcyPrice };
-  }
-
-  private effectiveLeverage(position: EnginePosition) {
-    if (position.margin <= 0n || position.quantity <= 0n) return 1;
-
-    const notional = (position.averagePrice * position.quantity) / SCALE;
-    const leverage = Number(
-      (notional + position.margin - 1n) / position.margin,
-    );
-
-    return leverage > 0 ? leverage : 1;
-  }
-
-  private fillMargin(fill: EngineFill, leverage: number) {
-    return (fill.price * fill.quantity) / (SCALE * BigInt(leverage));
-  }
-
-  private async handleMakerFill(makerFill: EngineMakerFill, fill: EngineFill) {
-    const makerUser = this.userService.getUser(makerFill.makerUserId);
-    if (!makerUser) return;
-
-    const makerPayload: EnginePayload = {
-      userId: makerFill.makerUserId,
-      market: fill.market,
-      side: makerFill.makerSide,
-      quantity: makerFill.quantity,
-      leverage: makerFill.makerLeverage,
-      correlationId: undefined,
-      type: "LIMIT",
-      price: makerFill.price,
-      slippageTolerance: undefined,
-    };
-
-    const closed = this.positionManager.applyFill(
-      makerUser,
-      makerPayload,
-      fill,
-      makerFill.makerMargin,
-    );
-    if (closed) await this.publishClosedPosition(closed);
-
-    await this.publishBalanceUpdate(makerFill.makerUserId, makerUser);
-
-    await this.publishOrderUpdated({
-      orderId: makerFill.makerOrderId,
-      userId: makerFill.makerUserId,
-      market: fill.market,
-      type: "LIMIT",
-      side: makerFill.makerSide,
-      price: toString(makerFill.price),
-      quantity: toString(
-        makerFill.makerFilledQuantity + makerFill.makerRemainingQuantity,
-      ),
-      filledQuantity: toString(makerFill.makerFilledQuantity),
-      status:
-        makerFill.makerRemainingQuantity === 0n ? "Filled" : "PartiallyFilled",
-    });
-  }
-
-  private async publishOrderCreated(orderId: string, payload: EnginePayload) {
-    const baseOrder = {
-      orderId,
-      userId: payload.userId,
-      market: payload.market,
-      side: payload.side,
-      quantity: toString(payload.quantity),
-      filledQuantity: "0",
-      status: "Open",
-    };
-    const order =
-      payload.type === "LIMIT" && payload.price !== undefined
-        ? {
-            ...baseOrder,
-            type: "LIMIT",
-            price: toString(payload.price),
-          }
-        : {
-            ...baseOrder,
-            type: "MARKET",
-          };
-
-    await publishToStream(config.ORDERS_ACK, {
-      ...order,
-      messageType: "order-created",
-    });
-  }
-
-  private async calculateCollateral(
-    price: bigint,
-    quantity: bigint,
-    leverage: number,
-  ) {
-    return (price * quantity) / (SCALE * BigInt(leverage));
-  }
-
-  private async publishOrderUpdated(order: Order) {
-    await publishToStream(config.ORDERS_ACK, {
-      ...order,
-      messageType: "order-updated",
-    });
-  }
-
-  private async publishOrderCancelled(orderId: string) {
-    await publishToStream(config.ORDERS_ACK, {
-      orderId,
-      status: "Cancelled",
-      messageType: "order-cancelled",
-    });
-  }
-
-  private async publishBalanceUpdate(userId: string, user: EngineUser) {
-    await publishToStream(config.ORDERS_ACK, {
-      userId,
-      available: toString(user.collateral.availableBalance),
-      locked: toString(user.collateral.lockedBalance),
-      messageType: "balance-updated",
-    });
-  }
-
-  private async publishClosedPosition(closed: EngineClosedPosition) {
-    await publishToStream(config.ORDERS_ACK, {
-      userId: closed.userId,
-      market: closed.market,
-      side: closed.side,
-      quantity: toString(closed.quantity),
-      averagePrice: toString(closed.averagePrice),
-      exitPrice: toString(closed.exitPrice),
-      liquidationPrice: toString(closed.liquidationPrice),
-      margin: toString(closed.margin),
-      realizedPnl: toString(closed.realizedPnl),
-      messageType: "position-closed",
-    });
-  }
-
-  private async publishFill(fill: EngineFill) {
-    await publishToStream(config.ORDERS_ACK, {
-      ...fill,
-      quantity: toString(fill.quantity),
-      price: toString(fill.price),
-      messageType: "fill-created",
-    });
-  }
-
-  /**Only for testing purposes */
-  addSeedData() {
-    this.book.addSeedData();
   }
 }

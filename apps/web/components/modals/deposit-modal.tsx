@@ -1,30 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { useBalance } from "@/components/balance/balance-context";
 import { AmountField, Chip, StatusText } from "@/components/modals/modal-parts";
 import { Modal } from "@/components/ui/modal";
-import { fmt } from "@/lib/format";
-import { PerpexTrading } from "@/lib/trading";
+import { deposit } from "@/lib/api/account";
+import { cleanDecimal, formatNumber } from "@/lib/format";
 
 const PRESETS = ["100", "500", "1000", "5000"];
-const trading = new PerpexTrading();
+const CLOSE_AFTER_SUCCESS_MS = 900;
 
 export function DepositModal({
   open,
   onClose,
+  available,
+  onDone,
 }: {
   open: boolean;
   onClose: () => void;
+  available: number;
+  onDone: () => void;
 }) {
-  const { availableNum, refresh } = useBalance();
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const amountNum = Number(amount);
-  const valid = amountNum > 0;
+  const amountNumber = Number(amount);
+  const valid = amountNumber > 0;
 
   const close = () => {
     setAmount("");
@@ -41,12 +43,13 @@ export function DepositModal({
       setError("Enter an amount greater than 0.");
       return;
     }
+
     setLoading(true);
     try {
-      await trading.deposit(amount.replace(/\.$/, ""));
-      setSuccess(`Deposited $${fmt(amountNum, 2)}.`);
-      refresh();
-      setTimeout(close, 900);
+      await deposit(cleanDecimal(amount));
+      setSuccess(`Deposited $${formatNumber(amountNumber, 2)}.`);
+      onDone();
+      setTimeout(close, CLOSE_AFTER_SUCCESS_MS);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Deposit failed.");
     } finally {
@@ -62,7 +65,9 @@ export function DepositModal({
       meta={
         <>
           Available ·{" "}
-          <span className="tabular text-ink/70">${fmt(availableNum, 2)}</span>
+          <span className="tabular text-ink/70">
+            ${formatNumber(available, 2)}
+          </span>
         </>
       }
     >
@@ -97,7 +102,7 @@ export function DepositModal({
           {loading
             ? "Depositing…"
             : valid
-              ? `Deposit $${fmt(amountNum, 2)}`
+              ? `Deposit $${formatNumber(amountNumber, 2)}`
               : "Deposit"}
         </button>
       </form>

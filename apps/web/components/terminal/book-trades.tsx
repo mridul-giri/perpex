@@ -2,37 +2,36 @@
 
 import { useState } from "react";
 import { Tabs } from "@/components/ui/tabs";
+import type { Depth, Trade } from "@/lib/types";
 import { OrderBook } from "./order-book";
 import { TradesList } from "./trades-list";
-import type { Depth, Trade } from "@/lib/market/types";
 
-export interface BookTradesProps {
+const TABS = [
+  { value: "book", label: "Book" },
+  { value: "trades", label: "Trades" },
+] as const;
+
+export function BookTrades({
+  depth,
+  trades,
+  priceDecimals,
+}: {
   depth: Depth;
   trades: Trade[];
-  dp: number;
-}
-
-export function BookTrades({ depth, trades, dp }: BookTradesProps) {
-  const [tab, setTab] = useState("book");
+  priceDecimals: number;
+}) {
+  const [tab, setTab] = useState<(typeof TABS)[number]["value"]>("book");
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-hairline px-3">
-        <Tabs
-          items={[
-            { value: "book", label: "Book" },
-            { value: "trades", label: "Trades" },
-          ]}
-          value={tab}
-          onValueChange={setTab}
-        />
-        <span className="text-xs text-ink-muted">Unit</span>
+      <div className="flex h-11 shrink-0 items-center border-b border-hairline px-3">
+        <Tabs items={TABS} value={tab} onValueChange={setTab} />
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab === "book" ? (
-          <OrderBook depth={depth} dp={dp} />
+          <OrderBook depth={depth} priceDecimals={priceDecimals} />
         ) : (
-          <TradesList trades={trades} dp={dp} />
+          <TradesList trades={trades} priceDecimals={priceDecimals} />
         )}
       </div>
     </div>

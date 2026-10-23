@@ -24,7 +24,11 @@ export const orderSchema = z.discriminatedUnion("type", [
     type: z.literal("MARKET"),
     side: z.enum(["LONG", "SHORT"]),
     market: z.string(),
-    slippageTolerance: z.number().default(0.02),
+    slippageTolerance: z
+      .number()
+      .min(0.0001, "Slippage must be at least 0.01%")
+      .max(0.5, "Slippage must be at most 50%")
+      .default(0.02),
     quantity: moneyString,
     leverage: z.number().default(10),
   }),

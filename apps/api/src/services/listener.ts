@@ -23,6 +23,14 @@ export const registerResolver = (
   pendingResolver.set(correlationId, { resolve, reject, timer });
 };
 
+export const cancelResolver = (correlationId: string) => {
+  const resolver = pendingResolver.get(correlationId);
+  if (!resolver) return;
+
+  clearTimeout(resolver.timer);
+  pendingResolver.delete(correlationId);
+};
+
 export const readAckStream = async () => {
   await consumeStream(config.ORDERS_ACK, async (data) => {
     const response = data as ResponseType;

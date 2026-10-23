@@ -5,13 +5,19 @@ import {
   STREAM_READERS,
 } from "@perpex/redis";
 import { config } from "@perpex/config";
-import type { ClosedPosition, Liquidation, Order } from "@perpex/types";
+import type {
+  ClosedPosition,
+  InsuranceFundUpdate,
+  Liquidation,
+  Order,
+} from "@perpex/types";
 import { cancelOrder, createOrder, updateOrder } from "./services/order";
 import { createFill } from "./services/fill";
 import { updateBalance } from "./services/balance";
 import { upsertMarket } from "./services/market";
 import { createClosedPosition } from "./services/position";
 import { createLiquidation } from "./services/liquidation";
+import { upsertInsuranceFund } from "./services/insurance-fund";
 import { startCandleWriter, updateCandle } from "./services/candle";
 
 await connectRedis();
@@ -54,6 +60,10 @@ async function storeToDb(data: any) {
     }
     case "liquidation": {
       await createLiquidation(data as Liquidation);
+      break;
+    }
+    case "insurance-fund-updated": {
+      await upsertInsuranceFund(data as InsuranceFundUpdate);
       break;
     }
   }

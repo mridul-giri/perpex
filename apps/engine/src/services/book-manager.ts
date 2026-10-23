@@ -1,6 +1,5 @@
-import type { OrderSide } from "@perpex/types";
-import type { EngineSide } from "@perpex/types";
-import { toBigInt, toString } from "../utils/conversion";
+import type { EngineOpenOrder, EngineSide, OrderSide } from "@perpex/types";
+import { toString } from "../utils/conversion";
 
 export interface BookState {
   bids: Map<bigint, EngineSide>;
@@ -19,37 +18,118 @@ export interface Depth {
 export class BookManager {
   private bids: Map<bigint, EngineSide> = new Map();
   private asks: Map<bigint, EngineSide> = new Map();
-  bidsPrices: bigint[] = [];
-  asksPrices: bigint[] = [];
+  private bidsPrices: bigint[] = [];
+  private asksPrices: bigint[] = [];
   private markPrice: bigint | undefined;
   private indexPrice: bigint | undefined;
 
-  getAsks() {
-    return this.asks;
+  bestOppositePrice(takerSide: OrderSide): bigint | undefined {
+    return takerSide === "LONG" ? this.asksPrices[0] : this.bidsPrices[0];
   }
 
-  getBids() {
-    return this.bids;
+  oppositeLevel(takerSide: OrderSide, price: bigint) {
+    const levels = takerSide === "LONG" ? this.asks : this.bids;
+    return levels.get(price);
   }
 
-  exportState(): BookState {
-    return {
-      bids: this.bids,
-      asks: this.asks,
-      bidsPrices: this.bidsPrices,
-      asksPrices: this.asksPrices,
-      markPrice: this.markPrice,
-      indexPrice: this.indexPrice,
+  removeBestOppositeLevel(takerSide: OrderSide) {
+    const levels = takerSide === "LONG" ? this.asks : this.bids;
+    const prices = takerSide === "LONG" ? this.asksPrices : this.bidsPrices;
+
+    const bestPrice = prices.shift();
+    if (bestPrice !== undefined) levels.delete(bestPrice);
+  }
+
+  placeIntoSide(
+    side: OrderSide,
+    price: bigint,
+    orderId: string,
+    userId: string,
+    quantity: bigint,
+    filledQuantity: bigint,
+    margin: bigint,
+    leverage: number,
+  ) {
+    const levels = side === "LONG" ? this.bids : this.asks;
+    const level = levels.get(price);
+
+    const newOrder: EngineOpenOrder = {
+      userId,
+      orderId,
+      quantity,
+      filledQuantity,
+      margin,
+      leverage,
+      createdAt: Date.now(),
     };
+
+    if (level) {
+      level.openOrders.push(newOrder);
+    } else {
+      levels.set(price, { openOrders: [newOrder] });
+    }
+
+    side === "LONG" ? this.sortBids() : this.sortAsks();
   }
 
-  importState(state: BookState) {
-    this.bids = state.bids;
-    this.asks = state.asks;
-    this.bidsPrices = state.bidsPrices;
-    this.asksPrices = state.asksPrices;
-    this.markPrice = state.markPrice;
-    this.indexPrice = state.indexPrice;
+  removeOrder(orderId: string, userId: string) {
+    for (const side of ["LONG", "SHORT"] as const) {
+      const levels = side === "LONG" ? this.bids : this.asks;
+
+      for (const [price, level] of levels.entries()) {
+        const index = level.openOrders.findIndex(
+          (order) => order.orderId === orderId && order.userId === userId,
+        );
+        if (index === -1) continue;
+
+        const [removed] = level.openOrders.splice(index, 1);
+        if (level.openOrders.length === 0) this.deleteLevel(side, price);
+
+        return removed ?? null;
+      }
+    }
+
+    return null;
+  }
+
+  removeOrdersOf(userId: string): EngineOpenOrder[] {
+    const userOrderIds: string[] = [];
+
+    for (const levels of [this.bids, this.asks]) {
+      for (const level of levels.values()) {
+        for (const order of level.openOrders) {
+          if (order.userId === userId) userOrderIds.push(order.orderId);
+        }
+      }
+    }
+
+    const removed: EngineOpenOrder[] = [];
+    for (const orderId of userOrderIds) {
+      const order = this.removeOrder(orderId, userId);
+      if (order) removed.push(order);
+    }
+    return removed;
+  }
+
+  private deleteLevel(side: OrderSide, price: bigint) {
+    const levels = side === "LONG" ? this.bids : this.asks;
+    const prices = side === "LONG" ? this.bidsPrices : this.asksPrices;
+
+    levels.delete(price);
+    const priceIndex = prices.indexOf(price);
+    if (priceIndex !== -1) prices.splice(priceIndex, 1);
+  }
+
+  private sortBids() {
+    this.bidsPrices = [...this.bids.keys()].sort((a, b) =>
+      a < b ? 1 : a > b ? -1 : 0,
+    );
+  }
+
+  private sortAsks() {
+    this.asksPrices = [...this.asks.keys()].sort((a, b) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    );
   }
 
   setMarkPrice(price: bigint) {
@@ -96,179 +176,23 @@ export class BookManager {
     return depth;
   }
 
-  placeIntoSide(
-    side: OrderSide,
-    price: bigint,
-    orderId: string,
-    userId: string,
-    quantity: bigint,
-    filledQuantity: bigint,
-    margin: bigint,
-    leverage: number,
-  ) {
-    const existing =
-      side === "LONG" ? this.bids.get(price) : this.asks.get(price);
-    const updateSide = side === "LONG" ? this.bids : this.asks;
-
-    const newOrder = {
-      userId,
-      orderId,
-      quantity,
-      filledQuantity,
-      margin,
-      leverage,
-      createdAt: Date.now(),
+  exportState(): BookState {
+    return {
+      bids: this.bids,
+      asks: this.asks,
+      bidsPrices: this.bidsPrices,
+      asksPrices: this.asksPrices,
+      markPrice: this.markPrice,
+      indexPrice: this.indexPrice,
     };
-
-    if (!existing) {
-      updateSide.set(price, {
-        openOrders: [newOrder],
-      });
-    } else {
-      existing.openOrders.push(newOrder);
-    }
-
-    side === "LONG" ? this.sortBids() : this.sortAsks();
   }
 
-  removeOrder(orderId: string, userId: string) {
-    const sides: { side: OrderSide; levels: Map<bigint, EngineSide> }[] = [
-      { side: "LONG", levels: this.bids },
-      { side: "SHORT", levels: this.asks },
-    ];
-
-    for (const { side, levels } of sides) {
-      for (const [price, level] of levels.entries()) {
-        const index = level.openOrders.findIndex(
-          (order) => order.orderId === orderId && order.userId === userId,
-        );
-
-        if (index === -1) continue;
-
-        const removed = level.openOrders.splice(index, 1)[0];
-        if (!removed) continue;
-
-        if (level.openOrders.length === 0) {
-          levels.delete(price);
-          const prices = side === "LONG" ? this.bidsPrices : this.asksPrices;
-          const priceIndex = prices.indexOf(price);
-          if (priceIndex !== -1) prices.splice(priceIndex, 1);
-        }
-
-        return removed;
-      }
-    }
-
-    return null;
-  }
-
-  private sortBids() {
-    this.bidsPrices = [...this.bids.keys()].sort((a, b) =>
-      a < b ? 1 : a > b ? -1 : 0,
-    );
-  }
-
-  private sortAsks() {
-    this.asksPrices = [...this.asks.keys()].sort((a, b) =>
-      a < b ? -1 : a > b ? 1 : 0,
-    );
-  }
-
-  addSeedData() {
-    this.bids.set(toBigInt("95"), {
-      openOrders: [
-        {
-          userId: "5",
-          orderId: "105",
-          quantity: toBigInt("1"),
-          filledQuantity: 0n,
-          margin: 0n,
-          leverage: 10,
-          createdAt: Date.now(),
-        },
-        {
-          userId: "6",
-          orderId: "106",
-          quantity: toBigInt("1"),
-          filledQuantity: 0n,
-          margin: 0n,
-          leverage: 10,
-          createdAt: Date.now(),
-        },
-      ],
-    });
-    this.bids.set(toBigInt("100"), {
-      openOrders: [
-        {
-          userId: "7",
-          orderId: "107",
-          quantity: toBigInt("1"),
-          filledQuantity: 0n,
-          margin: 0n,
-          leverage: 10,
-          createdAt: Date.now(),
-        },
-        {
-          userId: "10",
-          orderId: "110",
-          quantity: toBigInt("2"),
-          filledQuantity: 0n,
-          margin: 0n,
-          leverage: 10,
-          createdAt: Date.now(),
-        },
-      ],
-    });
-    this.asks.set(toBigInt("101"), {
-      openOrders: [
-        {
-          userId: "1",
-          orderId: "101",
-          quantity: toBigInt("1"),
-          filledQuantity: 0n,
-          margin: 0n,
-          leverage: 10,
-          createdAt: Date.now(),
-        },
-      ],
-    });
-    this.asks.set(toBigInt("100"), {
-      openOrders: [
-        {
-          userId: "31",
-          orderId: "103",
-          quantity: toBigInt("2"),
-          filledQuantity: 0n,
-          margin: 0n,
-          leverage: 10,
-          createdAt: Date.now(),
-        },
-        {
-          userId: "9",
-          orderId: "109",
-          quantity: toBigInt("1"),
-          filledQuantity: 0n,
-          margin: 0n,
-          leverage: 10,
-          createdAt: Date.now(),
-        },
-      ],
-    });
-    this.asks.set(toBigInt("104"), {
-      openOrders: [
-        {
-          userId: "4",
-          orderId: "104",
-          quantity: toBigInt("2"),
-          filledQuantity: 0n,
-          margin: 0n,
-          leverage: 10,
-          createdAt: Date.now(),
-        },
-      ],
-    });
-
-    this.sortBids();
-    this.sortAsks();
+  importState(state: BookState) {
+    this.bids = state.bids;
+    this.asks = state.asks;
+    this.bidsPrices = state.bidsPrices;
+    this.asksPrices = state.asksPrices;
+    this.markPrice = state.markPrice;
+    this.indexPrice = state.indexPrice;
   }
 }

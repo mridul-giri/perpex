@@ -6,7 +6,7 @@ export const fundingRateBps = (
 ): bigint => {
   if (indexPrice <= 0n) return 0n;
 
-  const premiumBps = ((indexPrice - markPrice) * 10000n) / indexPrice;
+  const premiumBps = ((markPrice - indexPrice) * 10000n) / indexPrice;
   if (premiumBps > MAX_FUNDING_RATE_BPS) return MAX_FUNDING_RATE_BPS;
   if (premiumBps < -MAX_FUNDING_RATE_BPS) return -MAX_FUNDING_RATE_BPS;
   return premiumBps;

@@ -9,8 +9,7 @@ export class UserService {
 
   getPositions(userId: string): EnginePosition[] {
     const user = this.getUser(userId);
-    if (!user) throw new EngineError(404, "User not found");
-    return [...user.positions.values()];
+    return user ? [...user.positions.values()] : [];
   }
 
   onRamp(userId: string, amount: bigint): bigint {
@@ -41,8 +40,7 @@ export class UserService {
 
   getBalance(userId: string) {
     const user = this.getUser(userId);
-    if (!user) throw new EngineError(404, "User not found");
-    return user.collateral;
+    return user ? user.collateral : { availableBalance: 0n, lockedBalance: 0n };
   }
 
   lockCollateral(user: EngineUser, collateral: bigint) {

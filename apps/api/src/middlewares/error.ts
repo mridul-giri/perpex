@@ -4,9 +4,9 @@ import { buildErrorBody } from "../utils/error-response";
 
 export const errorMiddleware = async (
   error: any,
-  _req: Request,
+  req: Request,
   res: Response,
-  _next: NextFunction,
+  next: NextFunction,
 ) => {
   const { status, body } = buildErrorBody(error);
 

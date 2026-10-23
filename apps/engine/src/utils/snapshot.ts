@@ -70,18 +70,12 @@ export const applySnapshot = (
   }
 
   insuranceFund.importState(state.insurance);
+
   engineManager.restoreState(state.markets);
 };
 
-export const startSnapshotSchedule = (
-  engineManager: EngineManager,
-  getOffset: () => string | null,
-) => {
+export const startSnapshotTimer = (markDue: () => void) => {
   if (!s3Configured()) return;
 
-  setInterval(() => {
-    void takeSnapshot(engineManager, getOffset()).catch((error) =>
-      console.error("failed to take snapshot", error),
-    );
-  }, config.SNAPSHOT_INTERVAL * 1000);
+  setInterval(markDue, config.SNAPSHOT_INTERVAL * 1000);
 };

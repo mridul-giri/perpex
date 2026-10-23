@@ -29,3 +29,10 @@ export const page = <T>(
 
   return { items, nextCursor: hasMore && last ? toCursor(last) : null };
 };
+
+export const olderThanCursor = (cursor: string) => {
+  const { createdAt, id } = decodeCursor(cursor);
+  return {
+    OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: id } }],
+  };
+};

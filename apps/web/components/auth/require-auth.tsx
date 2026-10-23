@@ -2,14 +2,17 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { isLoggedIn } from "@/lib/auth";
+import { useIsClient } from "@/hooks/use-is-client";
+import { isSignedIn } from "@/lib/session";
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const isClient = useIsClient();
+  const signedIn = isClient && isSignedIn();
 
   useEffect(() => {
-    if (!isLoggedIn()) router.replace("/signin");
-  }, [router]);
+    if (isClient && !signedIn) router.replace("/signin");
+  }, [isClient, signedIn, router]);
 
-  return <>{children}</>;
+  return signedIn ? children : null;
 }

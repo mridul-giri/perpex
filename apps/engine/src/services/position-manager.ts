@@ -8,6 +8,7 @@ import type {
 } from "@perpex/types";
 import { maintenanceMarginRate } from "../store/store";
 import { SCALE, toBigInt } from "../utils/conversion";
+import { marginFor } from "../utils/margin";
 
 export class PositionManager {
   applyFill(
@@ -24,12 +25,12 @@ export class PositionManager {
     }
 
     if (position.side === payload.side) {
-      this.increasePosition(position, payload, fill, fillMargin);
+      this.increasePosition(position, fill, fillMargin);
       return null;
     }
 
     if (fill.quantity < position.quantity) {
-      this.reducePosition(user, position, payload, fill, fillMargin);
+      this.reducePosition(user, position, fill, fillMargin);
       return null;
     }
 
@@ -67,7 +68,6 @@ export class PositionManager {
 
   private increasePosition(
     position: EnginePosition,
-    payload: EnginePayload,
     fill: EngineFill,
     fillMargin: bigint,
   ) {
@@ -78,18 +78,12 @@ export class PositionManager {
       newQuantity;
     position.quantity = newQuantity;
     position.margin += fillMargin;
-    position.liquidationPrice = this.calculateLiquidationPrice(
-      position.side,
-      position.averagePrice,
-      payload.leverage,
-    );
-    position.updatedAt = Date.now();
+    this.updateLiquidationPrice(position);
   }
 
   private reducePosition(
     user: EngineUser,
     position: EnginePosition,
-    payload: EnginePayload,
     fill: EngineFill,
     fillMargin: bigint,
   ) {
@@ -101,12 +95,7 @@ export class PositionManager {
 
     position.quantity -= fill.quantity;
     position.margin -= releasedMargin;
-    position.liquidationPrice = this.calculateLiquidationPrice(
-      position.side,
-      position.averagePrice,
-      payload.leverage,
-    );
-    position.updatedAt = Date.now();
+    this.updateLiquidationPrice(position);
   }
 
   private closePosition(
@@ -152,8 +141,11 @@ export class PositionManager {
     const flippedQuantity = fill.quantity - closedQuantity;
     const releasedMargin = position.margin;
     const pnl = this.calculateRealizedPnl(position, fill.price, closedQuantity);
-    const flippedMargin =
-      (fill.price * flippedQuantity) / (SCALE * BigInt(payload.leverage));
+    const flippedMargin = marginFor(
+      fill.price,
+      flippedQuantity,
+      payload.leverage,
+    );
 
     const closed: EngineClosedPosition = {
       userId: payload.userId,
@@ -192,7 +184,28 @@ export class PositionManager {
     return closed;
   }
 
-  closeLiquidatedPosition(
+  closePart(
+    user: EngineUser,
+    position: EnginePosition,
+    quantity: bigint,
+    exitPrice: bigint,
+  ): EngineClosedPosition | null {
+    if (quantity >= position.quantity) {
+      return this.closeAtPrice(user, position, exitPrice);
+    }
+
+    const releasedMargin = (position.margin * quantity) / position.quantity;
+    const pnl = this.calculateRealizedPnl(position, exitPrice, quantity);
+
+    this.settle(user, releasedMargin, pnl);
+
+    position.quantity -= quantity;
+    position.margin -= releasedMargin;
+    position.updatedAt = Date.now();
+    return null;
+  }
+
+  closeAtPrice(
     user: EngineUser,
     position: EnginePosition,
     exitPrice: bigint,
@@ -278,7 +291,7 @@ export class PositionManager {
     position.updatedAt = Date.now();
   }
 
-  private effectiveLeverage(position: EnginePosition) {
+  effectiveLeverage(position: EnginePosition) {
     if (position.margin <= 0n || position.quantity <= 0n) return 1;
 
     const notional = (position.averagePrice * position.quantity) / SCALE;

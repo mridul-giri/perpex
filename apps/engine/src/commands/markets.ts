@@ -1,6 +1,12 @@
 import type { CreateMarketCommand } from "@perpex/types";
 import { EngineManager } from "../services/engine-manager";
-import { publishError, publishMarketCreated, publishSuccess } from "./publish";
+import { insuranceFund } from "../services/insurance-fund";
+import {
+  publishError,
+  publishInsuranceFund,
+  publishMarketCreated,
+  publishSuccess,
+} from "../events/publish";
 
 export const handleCreateMarket = async (
   engineManager: EngineManager,
@@ -14,6 +20,10 @@ export const handleCreateMarket = async (
 
     const market = engine.getMarket();
     await publishMarketCreated(market);
+    await publishInsuranceFund(
+      market.marketSlug,
+      insuranceFund.getFund(market.marketSlug),
+    );
     await publishSuccess(command.correlationId, market);
   } catch (error) {
     await publishError(command.correlationId, error);

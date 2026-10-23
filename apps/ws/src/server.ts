@@ -2,7 +2,6 @@ import { WebSocketServer, WebSocket } from "ws";
 import { isChannel, type Channel } from "./channels";
 import { getDepth } from "./depth";
 
-// Which sockets are listening to which channel, "depth:BTC_PERP" -> { socket1, socket2 }
 const subscribersByChannel = new Map<string, Set<WebSocket>>();
 
 export const startServer = (port: number) => {
@@ -71,7 +70,6 @@ const handleMessage = (socket: WebSocket, raw: string) => {
 
     sendTo(socket, { operation: "subscribed", channel, symbol: market });
 
-    // Send the current depth immediately so the client does not wait for the next trade.
     const depth = channel === "depth" ? getDepth(market) : undefined;
     if (depth)
       sendTo(socket, { channel, market, data: depth, timestamp: Date.now() });

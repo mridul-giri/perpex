@@ -10,19 +10,15 @@ import { handleAccountCommand, storeUser } from "./commands/accounts";
 import { handleCancelOrder, handleCreateOrder } from "./commands/orders";
 import { handleCreateMarket } from "./commands/markets";
 import { handleGetDepth, handleGetMarketRisk } from "./commands/market-data";
-import { publishFunding, publishMarkPrice } from "./commands/publish";
+import { handleFundingSettlement, handleMarkPrice } from "./commands/prices";
 import { EngineManager } from "./services/engine-manager";
-import { LiquidationManager } from "./services/liquidation";
-import { FundingManager } from "./services/funding";
 import {
   applySnapshot,
   loadLatestSnapshot,
-  startSnapshotSchedule,
+  startSnapshotTimer,
   takeSnapshot,
 } from "./utils/snapshot";
 import { replayMissed } from "./utils/replay";
-import { toBigInt } from "./utils/conversion";
-import { fundingRateBps } from "./utils/funding-rate";
 import type {
   AccountCommand,
   CancelOrderCommand,
@@ -37,27 +33,8 @@ import type {
 await connectRedis();
 
 const engineManager = new EngineManager();
-const liquidationManager = new LiquidationManager(engineManager);
-const fundingManager = new FundingManager();
 
-let lastHandledId: string | null = null;
-
-startSnapshotSchedule(engineManager, () => lastHandledId);
-
-const shutdown = async (signal: string) => {
-  console.log(`${signal} received; taking final snapshot`);
-  await takeSnapshot(engineManager, lastHandledId);
-  process.exit(0);
-};
-
-process.on("SIGINT", () => void shutdown("SIGINT"));
-process.on("SIGTERM", () => void shutdown("SIGTERM"));
-
-const { group: ENGINE_GROUP, consumer: ENGINE_CONSUMER } =
-  STREAM_READERS.engine;
-
-const handleCommand = async (data: unknown, id: string) => {
-  lastHandledId = id;
+const runCommand = async (data: unknown) => {
   const message = data as { messageType?: string };
 
   switch (message.messageType) {
@@ -85,55 +62,65 @@ const handleCommand = async (data: unknown, id: string) => {
     case "get-market-risk":
       await handleGetMarketRisk(engineManager, data as GetMarketRiskCommand);
       return;
-    case "mark-price": {
-      const command = data as MarkPriceCommand;
-      const engine = engineManager.get(command.market);
-      if (!engine) return;
-
-      const price = toBigInt(command.price);
-      const indexPrice = toBigInt(command.indexPrice);
-      engine.setMarkPrice(price);
-      engine.setIndexPrice(indexPrice);
-
-      await publishMarkPrice(
-        command.market,
-        price,
-        indexPrice,
-        fundingRateBps(indexPrice, price),
-      );
-
-      await liquidationManager.liquidateUnderwater(command.market, price);
+    case "mark-price":
+      await handleMarkPrice(engineManager, data as MarkPriceCommand);
       return;
-    }
-    case "funding-settlement": {
-      const command = data as FundingSettlementCommand;
-      const engine = engineManager.get(command.market);
-      if (!engine) return;
-
-      const markPrice = engine.getMarkPrice();
-      const indexPrice = engine.getIndexPrice();
-      if (!markPrice || !indexPrice || indexPrice <= 0n) {
-        console.log(`skipping funding for ${command.market}: missing price`);
-        return;
-      }
-
-      const rate = fundingRateBps(indexPrice, markPrice);
-      const result = fundingManager.settle(command.market, rate);
-
-      await publishFunding(
-        command.market,
-        result.rateBps,
-        result.payments,
-        result.usedInsuranceFund,
+    case "funding-settlement":
+      await handleFundingSettlement(
+        engineManager,
+        data as FundingSettlementCommand,
       );
-
-      await liquidationManager.liquidateUnderwater(command.market, markPrice);
       return;
-    }
     default:
       console.log("unknown command type, ignoring:", message.messageType);
   }
 };
+
+let lastHandledId: string | null = null;
+let commandRunning = false;
+let snapshotDue = false;
+let shutdownRequested = false;
+
+const snapshotAndExit = async () => {
+  console.log("taking final snapshot before exit");
+  await takeSnapshot(engineManager, lastHandledId);
+  process.exit(0);
+};
+
+const handleCommand = async (data: unknown, id: string) => {
+  commandRunning = true;
+  try {
+    await runCommand(data);
+    lastHandledId = id;
+  } finally {
+    commandRunning = false;
+  }
+
+  if (shutdownRequested) return snapshotAndExit();
+
+  if (snapshotDue) {
+    snapshotDue = false;
+    await takeSnapshot(engineManager, lastHandledId).catch((error) =>
+      console.error("failed to take snapshot", error),
+    );
+  }
+};
+
+const requestShutdown = (signal: string) => {
+  console.log(`${signal} received`);
+  shutdownRequested = true;
+  if (!commandRunning) void snapshotAndExit();
+};
+
+process.on("SIGINT", () => requestShutdown("SIGINT"));
+process.on("SIGTERM", () => requestShutdown("SIGTERM"));
+
+startSnapshotTimer(() => {
+  snapshotDue = true;
+});
+
+const { group: ENGINE_GROUP, consumer: ENGINE_CONSUMER } =
+  STREAM_READERS.engine;
 
 const restored = await loadLatestSnapshot();
 

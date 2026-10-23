@@ -15,7 +15,7 @@ const BASIS_POINTS = 10000n;
 export class FundingManager {
   private positionManager = new PositionManager();
 
-  settle(market: string, rateBps: bigint): FundingResult {
+  settle(market: string, rateBps: bigint, markPrice: bigint): FundingResult {
     let payments = 0;
     let usedInsuranceFund = 0n;
 
@@ -31,21 +31,18 @@ export class FundingManager {
       if (!position) continue;
 
       const amount =
-        (position.averagePrice * position.quantity * absoluteRate) /
-        (SCALE * BASIS_POINTS);
+        (markPrice * position.quantity * absoluteRate) / (SCALE * BASIS_POINTS);
 
       if (amount === 0n) continue;
 
       if (position.side === payerSide) {
         const deducted = amount < position.margin ? amount : position.margin;
-        const deficit = amount - deducted;
+        const shortfall = amount - deducted;
 
         position.margin -= deducted;
         user.collateral.lockedBalance -= deducted;
 
-        if (deficit > 0n) {
-          usedInsuranceFund += this.coverDeficit(market, deficit);
-        }
+        usedInsuranceFund += insuranceFund.drawUpTo(market, shortfall);
       } else {
         position.margin += amount;
         user.collateral.lockedBalance += amount;
@@ -56,15 +53,5 @@ export class FundingManager {
     }
 
     return { rateBps, payments, usedInsuranceFund };
-  }
-
-  private coverDeficit(market: string, deficit: bigint) {
-    if (insuranceFund.coverDeficit(market, deficit)) {
-      return deficit;
-    }
-
-    const available = insuranceFund.getFund(market);
-    insuranceFund.coverDeficit(market, available);
-    return available;
   }
 }

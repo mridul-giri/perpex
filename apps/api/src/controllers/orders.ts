@@ -1,7 +1,10 @@
 import type { Request, Response } from "express";
-import { orderSchema, cancelOrderBodySchema, orderIdParamSchema } from "@perpex/schemas";
+import {
+  orderSchema,
+  cancelOrderBodySchema,
+  orderIdParamSchema,
+} from "@perpex/schemas";
 import { requestEngine } from "../utils/request-engine";
-import { ApiError } from "../utils/api-error";
 
 export const createOrder = async (req: Request, res: Response) => {
   const orderInput = orderSchema.parse(req.body);
@@ -29,29 +32,21 @@ export const createOrder = async (req: Request, res: Response) => {
           messageType: "create-order",
         };
 
-  const result = await requestEngine(command);
+  const data = await requestEngine(command);
 
-  if (!result.ok) {
-    throw new ApiError(400, result.error ?? "Order rejected");
-  }
-
-  res.status(201).json(result.data);
+  res.status(201).json(data);
 };
 
 export const cancelOrder = async (req: Request, res: Response) => {
   const { orderId } = orderIdParamSchema.parse(req.params);
   const { market } = cancelOrderBodySchema.parse(req.body);
 
-  const result = await requestEngine({
+  const data = await requestEngine({
     userId: req.user.id,
     market,
     orderId,
     messageType: "cancel-order",
   });
 
-  if (!result.ok) {
-    throw new ApiError(404, result.error ?? "Cancel failed");
-  }
-
-  res.json(result.data);
+  res.json(data);
 };

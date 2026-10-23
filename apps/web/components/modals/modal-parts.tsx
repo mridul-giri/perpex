@@ -2,8 +2,7 @@
 
 import { CircleCheck, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/cn";
-
-export const AMOUNT_INPUT = /^\d*\.?\d{0,8}$/;
+import { isDecimalDraft } from "@/lib/format";
 
 export function AmountField({
   label,
@@ -40,10 +39,10 @@ export function AmountField({
           autoFocus={autoFocus}
           placeholder="0.00"
           value={value}
-          onChange={(event) =>
-            AMOUNT_INPUT.test(event.target.value) &&
-            onChange(event.target.value)
-          }
+          onChange={(event) => {
+            if (isDecimalDraft(event.target.value))
+              onChange(event.target.value);
+          }}
           className="tabular min-w-0 flex-1 bg-transparent text-2xl font-semibold leading-none tracking-tight text-ink placeholder:text-ink-dim focus:outline-none"
         />
         {action}

@@ -1,9 +1,6 @@
 import { OrderBook } from "./order-book";
 import type { BookState } from "./book-manager";
-import { UserService } from "./user";
-import { MathchingEngine } from "./matching-engine";
-import { PositionManager } from "./position-manager";
-import { publishDepth } from "../commands/publish";
+import { publishDepth } from "../events/publish";
 import type {
   EnginePayload,
   EnginePosition,
@@ -19,13 +16,8 @@ export interface EngineMarketState {
 export class Engine {
   private orderBook: OrderBook;
 
-  constructor(
-    private readonly market: Market,
-    userService: UserService,
-    matcher: MathchingEngine,
-    positionManager: PositionManager,
-  ) {
-    this.orderBook = new OrderBook(userService, matcher, positionManager);
+  constructor(private readonly market: Market) {
+    this.orderBook = new OrderBook(market.marketSlug);
   }
 
   getMarket() {
@@ -40,6 +32,20 @@ export class Engine {
 
   async cancelOrder(userId: string, orderId: string) {
     const result = await this.orderBook.cancelOrder(userId, orderId);
+    await this.publishDepth();
+    return result;
+  }
+
+  async liquidatePosition(
+    user: EngineUser,
+    position: EnginePosition,
+    markPrice: bigint,
+  ) {
+    const result = await this.orderBook.liquidatePosition(
+      user,
+      position,
+      markPrice,
+    );
     await this.publishDepth();
     return result;
   }
@@ -73,20 +79,6 @@ export class Engine {
 
   importState(state: EngineMarketState) {
     this.orderBook.importState(state.book);
-  }
-
-  async liquidatePosition(
-    user: EngineUser,
-    position: EnginePosition,
-    markPrice: bigint,
-  ) {
-    const result = await this.orderBook.liquidatePosition(
-      user,
-      position,
-      markPrice,
-    );
-    await this.publishDepth();
-    return result;
   }
 
   private publishDepth() {

@@ -125,27 +125,27 @@ header. Account reads require the bearer token; market-data reads are public.
 Success responses are the bare resource (collections are `{ items, nextCursor }`).
 Errors are `{ "error": { "message" } }`.
 
-| Method | Route                              | Description                                       |
-| ------ | ---------------------------------- | ------------------------------------------------- |
-| POST   | `/auth/signup` `/signin` `/logout` | Auth (`signin` returns `{ userId, token }`)       |
-| POST   | `/admin/markets`                   | Register a tradable market                        |
-| POST   | `/account/deposits`                | Deposit collateral                                |
-| POST   | `/account/withdrawals`             | Withdraw collateral                               |
-| GET    | `/account/balance`                 | Read balance                                      |
-| GET    | `/account/positions`               | Open positions (engine)                           |
-| GET    | `/account/positions/:market`       | Single position                                   |
-| GET    | `/account/fills`                   | User fills (`?limit=&cursor=`)                    |
-| GET    | `/account/orders`                  | Order history (`?market=&status=&limit=&cursor=`) |
-| GET    | `/account/orders/:orderId`         | Single order                                      |
-| GET    | `/account/liquidations`            | Liquidation history                               |
-| POST   | `/orders`                          | Place a LIMIT or MARKET order                     |
-| DELETE | `/orders/:orderId`                 | Cancel an order (body `{ market }`)               |
-| GET    | `/markets`                         | Tradable markets                                  |
-| GET    | `/markets/:market`                 | Market detail                                     |
-| GET    | `/markets/:market/candles`         | OHLC candles (`?interval=&from=&to=&limit=`)      |
-| GET    | `/markets/:market/trades`          | Recent public trades                              |
-| GET    | `/markets/:market/orderbook`       | Order-book depth snapshot                         |
-| GET    | `/markets/:market/risk`            | Mark / index / funding                            |
+| Method | Route                              | Description                                        |
+| ------ | ---------------------------------- | -------------------------------------------------- |
+| POST   | `/auth/signup` `/signin` `/logout` | Auth (`signin` returns `{ userId, token }`)        |
+| POST   | `/admin/markets`                   | Register a tradable market (`User.isAdmin` only)   |
+| POST   | `/account/deposits`                | Deposit collateral                                 |
+| POST   | `/account/withdrawals`             | Withdraw collateral                                |
+| GET    | `/account/balance`                 | Read balance                                       |
+| GET    | `/account/positions`               | Closed-position history (`?limit=&cursor=`)        |
+| GET    | `/account/positions/:market`       | Open position in that market (engine), 404 if none |
+| GET    | `/account/fills`                   | User fills (`?limit=&cursor=`)                     |
+| GET    | `/account/orders`                  | Order history (`?market=&status=&limit=&cursor=`)  |
+| GET    | `/account/orders/:orderId`         | Single order                                       |
+| GET    | `/account/liquidations`            | Liquidation history                                |
+| POST   | `/orders`                          | Place a LIMIT or MARKET order                      |
+| DELETE | `/orders/:orderId`                 | Cancel an order (body `{ market }`)                |
+| GET    | `/markets`                         | Tradable markets                                   |
+| GET    | `/markets/:market`                 | Market detail                                      |
+| GET    | `/markets/:market/candles`         | OHLC candles (`?interval=&from=&to=&limit=`)       |
+| GET    | `/markets/:market/trades`          | Recent public trades                               |
+| GET    | `/markets/:market/orderbook`       | Order-book depth snapshot                          |
+| GET    | `/markets/:market/risk`            | Mark / index / funding                             |
 
 Candle intervals: `1m`, `5m`, `15m`, `1h`, `4h`, `1d` (Timescale continuous
 aggregates; `1m` is the raw hypertable).

@@ -6,8 +6,9 @@ import {
   getLiquidations,
   getOrder,
   getOrders,
+  getOpenPositions,
   getPosition,
-  getPositions,
+  getPositionHistory,
   withdraw,
 } from "../../controllers/account";
 import { authMiddleware } from "../../middlewares/auth";
@@ -25,7 +26,8 @@ accountRouter.post(
   idempotencyMiddleware,
   asyncHandler(withdraw),
 );
-accountRouter.get("/positions", asyncHandler(getPositions));
+accountRouter.get("/positions", asyncHandler(getOpenPositions));
+accountRouter.get("/positions/history", asyncHandler(getPositionHistory));
 accountRouter.get("/positions/:market", asyncHandler(getPosition));
 accountRouter.get("/fills", asyncHandler(getFills));
 accountRouter.get("/orders", asyncHandler(getOrders));

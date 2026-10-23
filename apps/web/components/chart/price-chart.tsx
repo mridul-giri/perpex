@@ -15,7 +15,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { cn } from "@/lib/cn";
-import type { Candle } from "@/lib/market/types";
+import type { Candle } from "@/lib/types";
 
 const UP = "#00c278";
 const DOWN = "#fd4b4e";
@@ -29,6 +29,7 @@ const PRICE_LINE = "rgba(255,255,255,0.35)";
 const MONO =
   "ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace";
 const INITIAL_VISIBLE_CANDLES = 90;
+const SMA_PERIOD = 20;
 
 const toCandle = (c: Candle): CandlestickData => ({
   time: c.timestamp as UTCTimestamp,
@@ -38,7 +39,7 @@ const toCandle = (c: Candle): CandlestickData => ({
   close: Number(c.close),
 });
 
-const sma = (candles: Candle[], period: number): LineData[] => {
+const movingAverage = (candles: Candle[], period: number): LineData[] => {
   const out: LineData[] = [];
   let sum = 0;
   for (let i = 0; i < candles.length; i++) {
@@ -85,13 +86,13 @@ function OhlcLegend({ candle }: { candle: Candle }) {
 export interface PriceChartProps {
   candles: Candle[];
   showSma?: boolean;
-  resetNonce?: number;
+  zoomResets?: number;
 }
 
 export function PriceChart({
   candles,
   showSma = false,
-  resetNonce = 0,
+  zoomResets = 0,
 }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -221,7 +222,7 @@ export function PriceChart({
           crosshairMarkerVisible: false,
         });
       }
-      smaSeriesRef.current.setData(sma(candles, 20));
+      smaSeriesRef.current.setData(movingAverage(candles, SMA_PERIOD));
     } else if (smaSeriesRef.current) {
       chart.removeSeries(smaSeriesRef.current);
       smaSeriesRef.current = null;
@@ -229,8 +230,8 @@ export function PriceChart({
   }, [candles, showSma]);
 
   useEffect(() => {
-    if (resetNonce > 0) chartRef.current?.timeScale().fitContent();
-  }, [resetNonce]);
+    if (zoomResets > 0) chartRef.current?.timeScale().fitContent();
+  }, [zoomResets]);
 
   const legend = hover ?? candles[candles.length - 1] ?? null;
 

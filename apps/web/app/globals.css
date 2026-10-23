@@ -2,13 +2,11 @@
 
 @theme {
   --color-ground: #0e0f14;
-  --color-ground-elevated: #14151b;
   --color-panel: #14151b;
   --color-panel-raised: #202126;
   --color-hairline: transparent;
   --color-hairline-strong: transparent;
   --color-accent: #00c278;
-  --color-accent-deep: #00c278;
   --color-accent-soft: rgb(0 194 120 / 0.14);
   --color-ink: #f2f2f2;
   --color-ink-muted: #9b9b9b;
@@ -26,20 +24,6 @@
   --radius-xl: 14px;
 
   --shadow-float: 0 12px 32px -12px rgb(0 0 0 / 0.8);
-  --shadow-signal: 0 8px 24px -12px rgb(0 194 120 / 0.45);
-
-  --animate-caret: caret-blink 1.05s steps(1, end) infinite;
-}
-
-@keyframes caret-blink {
-  0%,
-  55% {
-    opacity: 1;
-  }
-  56%,
-  100% {
-    opacity: 0;
-  }
 }
 
 @theme inline {
@@ -111,8 +95,4 @@
   .tabular {
     font-variant-numeric: tabular-nums;
   }
-}
-
-@utility bg-primary {
-  background-color: var(--color-accent-deep);
 }

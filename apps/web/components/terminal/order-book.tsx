@@ -3,11 +3,13 @@
 import { memo } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
-import { fmt } from "@/lib/format";
-import type { Depth, DepthLevel } from "@/lib/market/types";
+import { formatNumber } from "@/lib/format";
+import type { Depth, DepthLevel } from "@/lib/types";
 
-const BID_FILL = "rgb(0 194 120)";
-const ASK_FILL = "rgb(253 75 78)";
+const MAX_LEVELS = 12;
+const SIZE_DECIMALS = 3;
+const BID_COLOR = "rgb(0 194 120)";
+const ASK_COLOR = "rgb(253 75 78)";
 
 const BAR_TRANSITION = {
   type: "tween",
@@ -15,110 +17,48 @@ const BAR_TRANSITION = {
   ease: [0.25, 0.1, 0.25, 1],
 } as const;
 
-const BAR_STYLE = {
-  width: "100%",
-  transformOrigin: "right",
-  willChange: "transform",
-} as const;
-
-const MAX_LEVELS = 12;
-
-interface Row {
+interface BookRow {
   price: string;
   size: string;
   total: number;
 }
 
-const withCumulative = (levels: DepthLevel[]): Row[] => {
-  let cum = 0;
+const withRunningTotal = (levels: DepthLevel[]): BookRow[] => {
+  let total = 0;
   return levels.map(([price, size]) => {
-    cum += Number(size);
-    return { price, size, total: cum };
+    total += Number(size);
+    return { price, size, total };
   });
 };
 
-interface DepthRowProps {
-  row: Row;
-  dp: number;
-  sizeDp: number;
-  side: "bid" | "ask";
-  cumW: number;
-  sizeW: number;
-}
-
-const DepthRow = memo(function DepthRow({
-  row,
-  dp,
-  sizeDp,
-  side,
-  cumW,
-  sizeW,
-}: DepthRowProps) {
-  const bid = side === "bid";
-  return (
-    <div className="relative grid grid-cols-3 px-3 py-1 text-xs">
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-0"
-        style={{
-          ...BAR_STYLE,
-          backgroundColor: bid ? BID_FILL : ASK_FILL,
-          opacity: 0.12,
-        }}
-        initial={false}
-        animate={{ scaleX: cumW / 100 }}
-        transition={BAR_TRANSITION}
-      />
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-0"
-        style={{
-          ...BAR_STYLE,
-          backgroundColor: bid ? BID_FILL : ASK_FILL,
-          opacity: 0.28,
-        }}
-        initial={false}
-        animate={{ scaleX: sizeW / 100 }}
-        transition={BAR_TRANSITION}
-      />
-      <span className={cn("relative tabular", bid ? "text-up" : "text-down")}>
-        {fmt(row.price, dp)}
-      </span>
-      <span className="relative tabular text-right text-ink">
-        {fmt(row.size, sizeDp)}
-      </span>
-      <span className="relative tabular text-right text-ink-muted">
-        {fmt(row.total, sizeDp)}
-      </span>
-    </div>
-  );
-});
-
-export interface OrderBookProps {
+export function OrderBook({
+  depth,
+  priceDecimals,
+}: {
   depth: Depth;
-  dp: number;
-  sizeDp?: number;
-}
+  priceDecimals: number;
+}) {
+  const asks = withRunningTotal(depth.asks.slice(0, MAX_LEVELS));
+  const bids = withRunningTotal(depth.bids.slice(0, MAX_LEVELS));
+  const allRows = [...asks, ...bids];
 
-export function OrderBook({ depth, dp, sizeDp = 3 }: OrderBookProps) {
-  const asksAsc = withCumulative(depth.asks.slice(0, MAX_LEVELS));
-  const bidsDesc = withCumulative(depth.bids.slice(0, MAX_LEVELS));
+  const largestTotal = Math.max(...allRows.map((row) => row.total), 1);
+  const largestSize = Math.max(...allRows.map((row) => Number(row.size)), 1);
 
-  const bestAsk = depth.asks[0] ? Number(depth.asks[0][0]) : 0;
-  const bestBid = depth.bids[0] ? Number(depth.bids[0][0]) : 0;
+  const bestAsk = Number(depth.asks[0]?.[0] ?? 0);
+  const bestBid = Number(depth.bids[0]?.[0] ?? 0);
   const spread = bestAsk && bestBid ? bestAsk - bestBid : 0;
 
-  const max = Math.max(
-    ...asksAsc.map((r) => r.total),
-    ...bidsDesc.map((r) => r.total),
-    1,
+  const renderRow = (row: BookRow, index: number, side: "bid" | "ask") => (
+    <BookLevel
+      key={`${side}-${index}`}
+      row={row}
+      side={side}
+      priceDecimals={priceDecimals}
+      totalWidth={(row.total / largestTotal) * 100}
+      sizeWidth={(Number(row.size) / largestSize) * 100}
+    />
   );
-
-  let maxSize = 0;
-  for (const row of [...asksAsc, ...bidsDesc]) {
-    maxSize = Math.max(maxSize, Number(row.size));
-  }
-  if (maxSize === 0) maxSize = 1;
 
   return (
     <div className="flex h-full flex-col">
@@ -129,39 +69,79 @@ export function OrderBook({ depth, dp, sizeDp = 3 }: OrderBookProps) {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col-reverse gap-px overflow-y-auto">
-        {asksAsc.map((row, i) => (
-          <DepthRow
-            key={`ask-${i}`}
-            row={row}
-            dp={dp}
-            sizeDp={sizeDp}
-            side="ask"
-            cumW={(row.total / max) * 100}
-            sizeW={(Number(row.size) / maxSize) * 100}
-          />
-        ))}
+        {asks.map((row, index) => renderRow(row, index, "ask"))}
       </div>
 
       <div className="flex shrink-0 items-center justify-between border-y border-hairline px-3 py-1.5">
         <span className="text-xs text-ink-muted">Spread</span>
         <span className="tabular text-xs font-medium text-ink">
-          {fmt(spread, dp)}
+          {formatNumber(spread, priceDecimals)}
         </span>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto">
-        {bidsDesc.map((row, i) => (
-          <DepthRow
-            key={`bid-${i}`}
-            row={row}
-            dp={dp}
-            sizeDp={sizeDp}
-            side="bid"
-            cumW={(row.total / max) * 100}
-            sizeW={(Number(row.size) / maxSize) * 100}
-          />
-        ))}
+        {bids.map((row, index) => renderRow(row, index, "bid"))}
       </div>
     </div>
+  );
+}
+
+const BookLevel = memo(function BookLevel({
+  row,
+  side,
+  priceDecimals,
+  totalWidth,
+  sizeWidth,
+}: {
+  row: BookRow;
+  side: "bid" | "ask";
+  priceDecimals: number;
+  totalWidth: number;
+  sizeWidth: number;
+}) {
+  const isBid = side === "bid";
+  const color = isBid ? BID_COLOR : ASK_COLOR;
+
+  return (
+    <div className="relative grid grid-cols-3 px-3 py-1 text-xs">
+      <DepthBar color={color} opacity={0.12} widthPercent={totalWidth} />
+      <DepthBar color={color} opacity={0.28} widthPercent={sizeWidth} />
+      <span className={cn("relative tabular", isBid ? "text-up" : "text-down")}>
+        {formatNumber(row.price, priceDecimals)}
+      </span>
+      <span className="relative tabular text-right text-ink">
+        {formatNumber(row.size, SIZE_DECIMALS)}
+      </span>
+      <span className="relative tabular text-right text-ink-muted">
+        {formatNumber(row.total, SIZE_DECIMALS)}
+      </span>
+    </div>
+  );
+});
+
+function DepthBar({
+  color,
+  opacity,
+  widthPercent,
+}: {
+  color: string;
+  opacity: number;
+  widthPercent: number;
+}) {
+  return (
+    <motion.div
+      aria-hidden
+      className="pointer-events-none absolute inset-y-0 right-0"
+      style={{
+        width: "100%",
+        transformOrigin: "right",
+        willChange: "transform",
+        backgroundColor: color,
+        opacity,
+      }}
+      initial={false}
+      animate={{ scaleX: widthPercent / 100 }}
+      transition={BAR_TRANSITION}
+    />
   );
 }

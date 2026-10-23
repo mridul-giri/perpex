@@ -1,14 +1,16 @@
 import { cn } from "@/lib/cn";
-import { fmt, fmtTime } from "@/lib/format";
-import type { Trade } from "@/lib/market/types";
+import { formatNumber, formatTime } from "@/lib/format";
+import type { Trade } from "@/lib/types";
 
-export interface TradesListProps {
+const SIZE_DECIMALS = 3;
+
+export function TradesList({
+  trades,
+  priceDecimals,
+}: {
   trades: Trade[];
-  dp: number;
-  sizeDp?: number;
-}
-
-export function TradesList({ trades, dp, sizeDp = 3 }: TradesListProps) {
+  priceDecimals: number;
+}) {
   return (
     <div className="flex h-full flex-col">
       <div className="grid grid-cols-3 border-b border-hairline px-3 py-2 text-xs text-ink-muted">
@@ -26,13 +28,13 @@ export function TradesList({ trades, dp, sizeDp = 3 }: TradesListProps) {
                 trade.isBuyerMaker ? "text-down" : "text-up",
               )}
             >
-              {fmt(trade.price, dp)}
+              {formatNumber(trade.price, priceDecimals)}
             </span>
             <span className="tabular text-right text-ink">
-              {fmt(trade.quantity, sizeDp)}
+              {formatNumber(trade.quantity, SIZE_DECIMALS)}
             </span>
             <span className="tabular text-right text-ink-dim">
-              {fmtTime(trade.timestamp)}
+              {formatTime(trade.timestamp)}
             </span>
           </div>
         ))}

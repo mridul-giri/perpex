@@ -6,7 +6,7 @@ import { ApiError } from "../utils/api-error";
 
 export const authMiddleware = (
   req: Request,
-  _res: Response,
+  res: Response,
   next: NextFunction,
 ) => {
   const header = req.header("Authorization");

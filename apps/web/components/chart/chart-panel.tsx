@@ -1,60 +1,32 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Maximize2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { cn } from "@/lib/cn";
-import { aggregateCandles, INTERVALS } from "@/lib/market/candles";
-import { PerpexProvider } from "@/lib/market/provider";
-import type { Candle } from "@/lib/market/types";
+import { INTERVALS, type Interval } from "@/lib/candles";
+import type { Candle } from "@/lib/types";
 import { PriceChart } from "./price-chart";
 
-const TIMEFRAMES = INTERVALS.map((value) => ({ value, label: value }));
-
-interface CandleSet {
-  interval: string;
-  candles: Candle[];
-}
+const INTERVAL_TABS = INTERVALS.map((value) => ({ value, label: value }));
 
 export interface ChartPanelProps {
-  market: string;
   candles: Candle[];
+  interval: Interval;
+  loading: boolean;
+  onIntervalChange: (interval: Interval) => void;
 }
 
-export function ChartPanel({ market, candles }: ChartPanelProps) {
+export function ChartPanel({
+  candles,
+  interval,
+  loading,
+  onIntervalChange,
+}: ChartPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const seedRef = useRef(candles);
-  const [timeframe, setTimeframe] = useState("1h");
-  const [result, setResult] = useState<CandleSet | null>(null);
   const [showSma, setShowSma] = useState(false);
-  const [resetNonce, setResetNonce] = useState(0);
-
-  useEffect(() => {
-    seedRef.current = candles;
-  }, [candles]);
-
-  useEffect(() => {
-    if (timeframe === "1m") return;
-
-    let cancelled = false;
-    (async () => {
-      let data: Candle[];
-      try {
-        data = await new PerpexProvider().getCandles(market, timeframe, 300);
-      } catch {
-        data = aggregateCandles(seedRef.current, timeframe);
-      }
-      if (!cancelled) setResult({ interval: timeframe, candles: data });
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [timeframe, market]);
-
-  const shown = timeframe === "1m" ? candles : (result?.candles ?? candles);
-  const loading = timeframe !== "1m" && result?.interval !== timeframe;
+  const [zoomResets, setZoomResets] = useState(0);
 
   return (
     <div ref={panelRef} className="flex h-full flex-col">
@@ -66,7 +38,7 @@ export function ChartPanel({ market, candles }: ChartPanelProps) {
             size="md"
             aria-pressed={showSma}
             onClick={() => setShowSma((value) => !value)}
-            className={showSma ? "text-signal" : undefined}
+            className={showSma ? "text-accent!" : undefined}
           >
             SMA
           </Button>
@@ -74,7 +46,7 @@ export function ChartPanel({ market, candles }: ChartPanelProps) {
             variant="ghost"
             size="md"
             aria-label="Reset zoom"
-            onClick={() => setResetNonce((value) => value + 1)}
+            onClick={() => setZoomResets((count) => count + 1)}
           >
             <RotateCcw className="size-[18px]" strokeWidth={1.5} />
           </Button>
@@ -87,9 +59,9 @@ export function ChartPanel({ market, candles }: ChartPanelProps) {
             <Maximize2 className="size-[18px]" strokeWidth={1.5} />
           </Button>
           <Tabs
-            items={TIMEFRAMES}
-            value={timeframe}
-            onValueChange={setTimeframe}
+            items={INTERVAL_TABS}
+            value={interval}
+            onValueChange={onIntervalChange}
             size="md"
           />
         </div>
@@ -102,9 +74,9 @@ export function ChartPanel({ market, candles }: ChartPanelProps) {
           )}
         >
           <PriceChart
-            candles={shown}
+            candles={candles}
             showSma={showSma}
-            resetNonce={resetNonce}
+            zoomResets={zoomResets}
           />
         </div>
       </div>

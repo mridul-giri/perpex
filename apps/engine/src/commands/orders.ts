@@ -6,7 +6,7 @@ import type {
 import type { EngineManager } from "../services/engine-manager";
 import { EngineError } from "../utils/engine-error";
 import { toBigInt } from "../utils/conversion";
-import { publishError, publishSuccess } from "./publish";
+import { publishError, publishSuccess } from "../events/publish";
 
 export const handleCreateOrder = async (
   engineManager: EngineManager,

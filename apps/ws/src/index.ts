@@ -15,6 +15,7 @@ interface EngineMessage {
   asks?: Depth["asks"];
   price?: string;
   quantity?: string;
+  takerSide?: "LONG" | "SHORT";
   markPrice?: string;
   indexPrice?: string | null;
   fundingRateBps?: string;
@@ -38,6 +39,7 @@ const handleEngineMessage = async (data: unknown) => {
     broadcast("trade", message.market, {
       price: message.price ?? "0",
       quantity: message.quantity ?? "0",
+      isBuyerMaker: message.takerSide === "SHORT",
       timestamp: Date.now(),
     });
   }

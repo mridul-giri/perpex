@@ -3,7 +3,7 @@ import type { EngineManager } from "../services/engine-manager";
 import { EngineError } from "../utils/engine-error";
 import { toString } from "../utils/conversion";
 import { fundingRateBps } from "../utils/funding-rate";
-import { publishError, publishSuccess } from "./publish";
+import { publishError, publishSuccess } from "../events/publish";
 
 export const handleGetMarketRisk = async (
   engineManager: EngineManager,

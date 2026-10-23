@@ -1,235 +1,88 @@
-import type {
-  EngineFill,
-  EngineMakerFill,
-  EnginePayload,
-  EngineSide,
-  OrderStatus,
-} from "@perpex/types";
-import { SCALE } from "../utils/conversion";
+import type { EngineFill, EngineMakerFill, EnginePayload } from "@perpex/types";
+import type { BookManager } from "./book-manager";
 
-export class MathchingEngine {
-  matchLimitOrder(
-    payload: EnginePayload,
-    entryPrice: bigint,
-    orderId: string,
-    asks: Map<bigint, EngineSide>,
-    bids: Map<bigint, EngineSide>,
-    asksPrices: bigint[],
-    bidsPrices: bigint[],
-    lockedCollateral: bigint,
-  ) {
-    let orderQuantity = payload.quantity;
-    let totalFilledValue = 0n;
-    let usedCollateral = 0n;
-    const fills: EngineFill[] = [];
-    const makerFills: EngineMakerFill[] = [];
+export interface Match {
+  fill: EngineFill;
+  maker: EngineMakerFill;
+}
 
-    const oppositeSide = payload.side === "LONG" ? asks : bids;
-    const sortedPrice = payload.side === "LONG" ? asksPrices : bidsPrices;
-    const leverage = BigInt(payload.leverage);
+export interface MatchResult {
+  matches: Match[];
+  remainingQuantity: bigint;
+  filledValue: bigint;
+}
 
-    while (orderQuantity > 0n) {
-      const bestPrice = payload.side === "LONG" ? asksPrices[0] : bidsPrices[0];
+export class MatchingEngine {
+  match(
+    taker: EnginePayload,
+    takerOrderId: string,
+    worstPrice: bigint,
+    book: BookManager,
+  ): MatchResult {
+    let remainingQuantity = taker.quantity;
+    let filledValue = 0n;
+    const matches: Match[] = [];
 
-      if (!bestPrice) break;
+    while (remainingQuantity > 0n) {
+      const bestPrice = book.bestOppositePrice(taker.side);
+      if (bestPrice === undefined) break;
 
-      if (payload.side === "LONG" && bestPrice > entryPrice) break;
-      if (payload.side === "SHORT" && bestPrice < entryPrice) break;
+      const priceIsWorse =
+        taker.side === "LONG" ? bestPrice > worstPrice : bestPrice < worstPrice;
+      if (priceIsWorse) break;
 
-      const priceData = oppositeSide.get(bestPrice);
-
-      if (!priceData || priceData.openOrders.length === 0) {
-        oppositeSide.delete(bestPrice);
-        sortedPrice.splice(0, 1);
+      const level = book.oppositeLevel(taker.side, bestPrice);
+      const makerOrder = level?.openOrders[0];
+      if (!level || !makerOrder) {
+        book.removeBestOppositeLevel(taker.side);
         continue;
       }
 
-      const openOrder = priceData.openOrders[0];
-      if (!openOrder) break;
+      const filledQuantity =
+        remainingQuantity < makerOrder.quantity
+          ? remainingQuantity
+          : makerOrder.quantity;
 
-      const filledQty =
-        orderQuantity < openOrder.quantity ? orderQuantity : openOrder.quantity;
+      const makerMargin =
+        (makerOrder.margin * filledQuantity) / makerOrder.quantity;
 
-      fills.push({
-        makerUserId: openOrder.userId,
-        takerUserId: payload.userId,
-        makerOrderId: openOrder.orderId,
-        takerOrderId: orderId,
-        market: payload.market,
-        quantity: filledQty,
-        price: bestPrice,
-        takerSide: payload.side,
+      matches.push({
+        fill: {
+          makerUserId: makerOrder.userId,
+          takerUserId: taker.userId,
+          makerOrderId: makerOrder.orderId,
+          takerOrderId,
+          market: taker.market,
+          quantity: filledQuantity,
+          price: bestPrice,
+          takerSide: taker.side,
+        },
+        maker: {
+          makerUserId: makerOrder.userId,
+          makerOrderId: makerOrder.orderId,
+          makerSide: taker.side === "LONG" ? "SHORT" : "LONG",
+          makerLeverage: makerOrder.leverage,
+          makerMargin,
+          makerFilledQuantity: makerOrder.filledQuantity + filledQuantity,
+          makerRemainingQuantity: makerOrder.quantity - filledQuantity,
+          quantity: filledQuantity,
+          price: bestPrice,
+        },
       });
 
-      totalFilledValue += bestPrice * filledQty;
-      usedCollateral += (bestPrice * filledQty) / (SCALE * leverage);
+      filledValue += bestPrice * filledQuantity;
 
-      const consumedMargin =
-        (openOrder.margin * filledQty) / openOrder.quantity;
+      makerOrder.quantity -= filledQuantity;
+      makerOrder.filledQuantity += filledQuantity;
+      makerOrder.margin -= makerMargin;
+      remainingQuantity -= filledQuantity;
 
-      makerFills.push({
-        makerUserId: openOrder.userId,
-        makerOrderId: openOrder.orderId,
-        makerSide: payload.side === "LONG" ? "SHORT" : "LONG",
-        makerLeverage: openOrder.leverage,
-        makerMargin: consumedMargin,
-        makerFilledQuantity: openOrder.filledQuantity + filledQty,
-        makerRemainingQuantity: openOrder.quantity - filledQty,
-        quantity: filledQty,
-        price: bestPrice,
-      });
-
-      openOrder.quantity -= filledQty;
-      openOrder.filledQuantity += filledQty;
-      openOrder.margin -= consumedMargin;
-
-      if (openOrder.quantity <= 0n) {
-        priceData.openOrders.splice(0, 1);
+      if (makerOrder.quantity <= 0n) level.openOrders.shift();
+      if (level.openOrders.length === 0) {
+        book.removeBestOppositeLevel(taker.side);
       }
-
-      if (priceData.openOrders.length === 0) {
-        oppositeSide.delete(bestPrice);
-        sortedPrice.splice(0, 1);
-      }
-
-      orderQuantity -= filledQty;
-    }
-    const filledQuantity = payload.quantity - orderQuantity;
-
-    let status: OrderStatus = "Open";
-
-    if (orderQuantity === 0n) {
-      status = "Filled";
-    } else if (filledQuantity > 0n) {
-      status = "PartiallyFilled";
-    } else {
-      status = "Open";
     }
 
-    const actualCollateralUsed = usedCollateral;
-    const remainingCollateral =
-      (entryPrice * orderQuantity) / (SCALE * leverage);
-    const surplus =
-      lockedCollateral - actualCollateralUsed - remainingCollateral;
-
-    return {
-      fills,
-      makerFills,
-      remainingQuantity: orderQuantity,
-      totalFilledValue,
-      surplus,
-      actualCollateralUsed,
-      status,
-    };
-  }
-
-  matchMarketOrder(
-    payload: EnginePayload,
-    orderId: string,
-    asksPrices: bigint[],
-    bidsPrices: bigint[],
-    asks: Map<bigint, EngineSide>,
-    bids: Map<bigint, EngineSide>,
-    lockedCollateral: bigint,
-    worstCasePrice: bigint,
-  ) {
-    let orderQuantity = payload.quantity;
-    let totalFilledValue = 0n;
-    let usedCollateral = 0n;
-    const fills: EngineFill[] = [];
-    const makerFills: EngineMakerFill[] = [];
-
-    const oppositeSide = payload.side === "LONG" ? asks : bids;
-    const sortedPrice = payload.side === "LONG" ? asksPrices : bidsPrices;
-    const leverage = BigInt(payload.leverage);
-
-    while (orderQuantity > 0n) {
-      const bestPrice = payload.side === "LONG" ? asksPrices[0] : bidsPrices[0];
-
-      if (!bestPrice) break;
-
-      if (payload.side === "LONG" && bestPrice > worstCasePrice) break;
-      if (payload.side === "SHORT" && bestPrice < worstCasePrice) break;
-
-      const priceData =
-        payload.side === "LONG" ? asks.get(bestPrice) : bids.get(bestPrice);
-
-      if (!priceData || priceData.openOrders.length === 0) {
-        oppositeSide.delete(bestPrice);
-        sortedPrice.splice(0, 1);
-        continue;
-      }
-
-      const openOrder = priceData.openOrders[0];
-      if (!openOrder) break;
-
-      const filledQty =
-        orderQuantity < openOrder.quantity ? orderQuantity : openOrder.quantity;
-
-      fills.push({
-        makerUserId: openOrder.userId,
-        takerUserId: payload.userId,
-        makerOrderId: openOrder.orderId,
-        takerOrderId: orderId,
-        market: payload.market,
-        quantity: filledQty,
-        price: bestPrice,
-        takerSide: payload.side,
-      });
-
-      totalFilledValue += bestPrice * filledQty;
-      usedCollateral += (bestPrice * filledQty) / (SCALE * leverage);
-
-      const consumedMargin =
-        (openOrder.margin * filledQty) / openOrder.quantity;
-
-      makerFills.push({
-        makerUserId: openOrder.userId,
-        makerOrderId: openOrder.orderId,
-        makerSide: payload.side === "LONG" ? "SHORT" : "LONG",
-        makerLeverage: openOrder.leverage,
-        makerMargin: consumedMargin,
-        makerFilledQuantity: openOrder.filledQuantity + filledQty,
-        makerRemainingQuantity: openOrder.quantity - filledQty,
-        quantity: filledQty,
-        price: bestPrice,
-      });
-
-      openOrder.quantity -= filledQty;
-      openOrder.filledQuantity += filledQty;
-      openOrder.margin -= consumedMargin;
-
-      if (openOrder.quantity <= 0n) {
-        priceData.openOrders.splice(0, 1);
-      }
-
-      if (priceData.openOrders.length === 0) {
-        oppositeSide.delete(bestPrice);
-        sortedPrice.splice(0, 1);
-      }
-
-      orderQuantity -= filledQty;
-    }
-
-    let status: OrderStatus = "Open";
-
-    if (orderQuantity === 0n) {
-      status = "Filled";
-    } else {
-      status = "Cancelled";
-    }
-
-    const actualCollateralUsed = usedCollateral;
-    const surplus = lockedCollateral - actualCollateralUsed;
-
-    return {
-      fills,
-      makerFills,
-      remainingQuantity: orderQuantity,
-      totalFilledValue,
-      surplus,
-      actualCollateralUsed,
-      status,
-    };
+    return { matches, remainingQuantity, filledValue };
   }
 }

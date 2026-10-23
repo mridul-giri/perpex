@@ -2,6 +2,7 @@ export interface ResponseType {
   [key: string]: any;
   correlationId: string;
   ok: boolean;
+  status?: number;
   error?: string;
 }
 

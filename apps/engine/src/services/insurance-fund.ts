@@ -1,40 +1,37 @@
-import { INSURANCE_FUND_SEED } from "../store/store";
+import { INSURANCE_FUND_SEED, InsuranceFunds } from "../store/store";
 
 export class InsuranceFund {
-  private funds = new Map<string, bigint>();
-
-  seed(market: string) {
-    this.funds.set(market, INSURANCE_FUND_SEED);
-  }
-
-  addToFund(market: string, amount: bigint) {
-    this.funds.set(market, this.getFund(market) + amount);
+  seed(market: string, amount: bigint = INSURANCE_FUND_SEED) {
+    InsuranceFunds.set(market, amount);
   }
 
   getFund(market: string) {
-    return this.funds.get(market) ?? 0n;
+    return InsuranceFunds.get(market) ?? 0n;
   }
 
   canCover(market: string, amount: bigint) {
     return this.getFund(market) >= amount;
   }
 
-  coverDeficit(market: string, amount: bigint): boolean {
-    if (amount <= 0n) return true;
+  drawUpTo(market: string, amount: bigint): bigint {
+    const available = this.getFund(market);
+    if (amount <= 0n || available <= 0n) return 0n;
 
-    const fund = this.getFund(market);
-    if (fund < amount) return false;
+    const drawn = amount < available ? amount : available;
 
-    this.funds.set(market, fund - amount);
-    return true;
+    InsuranceFunds.set(market, available - drawn);
+    return drawn;
   }
 
-  exportState() {
-    return Array.from(this.funds.entries());
+  exportState(): [string, bigint][] {
+    return Array.from(InsuranceFunds.entries());
   }
 
-  importState(entries: [string, bigint][]) {
-    this.funds = new Map(entries);
+  importState(funds: [string, bigint][]) {
+    InsuranceFunds.clear();
+    for (const [market, balance] of funds) {
+      InsuranceFunds.set(market, balance);
+    }
   }
 }
 

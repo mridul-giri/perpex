@@ -6,7 +6,7 @@ import {
   publishBalanceUpdate,
   publishError,
   publishSuccess,
-} from "./publish";
+} from "../events/publish";
 import type { AccountCommand, EnginePosition } from "@perpex/types";
 
 const userService = new UserService();

@@ -4,8 +4,7 @@ type ButtonVariant = "primary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md";
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary:
-    "bg-primary text-[#062018] hover:brightness-110 active:brightness-95",
+  primary: "bg-accent text-[#062018] hover:brightness-110 active:brightness-95",
   ghost:
     "text-ink-muted bg-transparent hover:bg-panel-raised hover:text-ink active:bg-panel",
   danger:

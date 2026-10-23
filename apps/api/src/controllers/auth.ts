@@ -1,6 +1,5 @@
 import { prisma } from "@perpex/db";
 import { ApiError } from "../utils/api-error";
-import { validateEmail } from "../utils/validate-email";
 import bcrypt from "bcrypt";
 import { signToken } from "../utils/token";
 import type { Request, Response } from "express";
@@ -15,9 +14,6 @@ export const signup = async (req: Request, res: Response) => {
     where: { email: signupInput.email },
   });
   if (existingUser) throw new ApiError(409, "User already exist");
-
-  const isEmailValid = validateEmail(signupInput.email);
-  if (!isEmailValid) throw new ApiError(400, "Invalid email");
 
   const hashedPassword = await bcrypt.hash(signupInput.password, 4);
 
@@ -40,9 +36,6 @@ export const signup = async (req: Request, res: Response) => {
 export const signin = async (req: Request, res: Response) => {
   const signinInput = signinSchema.parse(req.body);
 
-  const isEmailValid = validateEmail(signinInput.email);
-  if (!isEmailValid) throw new ApiError(400, "Invalid email");
-
   const user = await prisma.user.findFirst({
     where: { email: signinInput.email },
   });
@@ -57,6 +50,6 @@ export const signin = async (req: Request, res: Response) => {
   res.status(200).json({ userId: user.id, token: signToken(user) });
 };
 
-export const logout = async (_req: Request, res: Response) => {
+export const logout = async (req: Request, res: Response) => {
   res.status(200).json({ success: true });
 };

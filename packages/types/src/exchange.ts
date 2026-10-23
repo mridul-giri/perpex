@@ -55,3 +55,8 @@ export interface Liquidation {
   liquidationPrice: string;
   bankruptcyPrice: string;
 }
+
+export interface InsuranceFundUpdate {
+  market: string;
+  balance: string;
+}

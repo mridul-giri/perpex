@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -10,64 +10,41 @@ import {
   User,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useBalance } from "@/components/balance/balance-context";
-import { CroppedButton } from "@/components/ui/cropped";
-import { clearAuthData, getToken, getUserName } from "@/lib/auth";
+import { useBalance } from "@/components/balance/balance-provider";
+import { Button } from "@/components/ui/button";
+import { useClickOutside } from "@/hooks/use-click-outside";
+import { useIsClient } from "@/hooks/use-is-client";
+import { signOut } from "@/lib/api/auth";
 import { cn } from "@/lib/cn";
-import { fmt, fmtCompact } from "@/lib/format";
-
-const emptySubscribe = () => () => {};
-const useMounted = () =>
-  useSyncExternalStore(
-    emptySubscribe,
-    () => true,
-    () => false,
-  );
+import { formatCompact, formatNumber } from "@/lib/format";
+import { getUserName, isSignedIn } from "@/lib/session";
 
 const LABEL = "text-xs text-ink-muted";
 
 export function AccountMenu() {
-  const mounted = useMounted();
+  const isClient = useIsClient();
   const router = useRouter();
-  const { availableNum, lockedNum, openDeposit, openWithdraw } = useBalance();
+  const { available, locked, openDeposit, openWithdraw } = useBalance();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  useClickOutside(ref, () => setOpen(false), open);
 
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
-
-  if (!mounted) return null;
-
-  const token = getToken();
-  if (!token) {
-    return (
-      <div className="flex w-full items-stretch overflow-hidden rounded-md border border-hairline bg-panel">
-        <Link
-          href="/signin"
-          className="flex w-full items-center justify-center bg-accent px-4 text-sm font-medium text-[#062018] transition-[filter] hover:brightness-110"
-        >
-          Sign in
-        </Link>
-      </div>
-    );
-  }
+  if (!isClient) return null;
+  if (!isSignedIn()) return <SignInLink />;
 
   const name = getUserName();
-  const total = availableNum + lockedNum;
+  const total = available + locked;
   const totalLabel = `$${
-    total >= 1_000_000 ? fmtCompact(total) : fmt(total, 2)
+    total >= 1_000_000 ? formatCompact(total) : formatNumber(total, 2)
   }`;
 
-  const logout = () => {
-    clearAuthData();
+  const closeThen = (action: () => void) => () => {
+    setOpen(false);
+    action();
+  };
+
+  const logOut = () => {
+    signOut();
     setOpen(false);
     router.push("/");
   };
@@ -112,6 +89,7 @@ export function AccountMenu() {
             strokeWidth={2}
           />
         </button>
+
         {open && (
           <motion.div
             initial={{ opacity: 0, y: -6 }}
@@ -126,7 +104,7 @@ export function AccountMenu() {
 
               <div className={cn(LABEL, "mt-3")}>Total balance</div>
               <div className="tabular mt-1.5 text-2xl font-semibold leading-none text-ink">
-                ${fmt(total, 2)}{" "}
+                ${formatNumber(total, 2)}{" "}
                 <span className="text-xs font-normal text-ink-dim">USDC</span>
               </div>
 
@@ -134,44 +112,38 @@ export function AccountMenu() {
                 <div>
                   <dt className={LABEL}>Available</dt>
                   <dd className="tabular mt-1 text-sm font-medium text-up">
-                    ${fmt(availableNum, 2)}
+                    ${formatNumber(available, 2)}
                   </dd>
                 </div>
                 <div>
                   <dt className={LABEL}>In orders</dt>
                   <dd className="tabular mt-1 text-sm font-medium text-ink">
-                    ${fmt(lockedNum, 2)}
+                    ${formatNumber(locked, 2)}
                   </dd>
                 </div>
               </dl>
 
               <div className="mt-4 grid grid-cols-2 gap-2 sm:hidden">
-                <CroppedButton
+                <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => {
-                    setOpen(false);
-                    openDeposit();
-                  }}
+                  onClick={closeThen(openDeposit)}
                 >
                   Deposit
-                </CroppedButton>
-                <CroppedButton
+                </Button>
+                <Button
                   variant="danger"
                   size="sm"
-                  onClick={() => {
-                    setOpen(false);
-                    openWithdraw();
-                  }}
+                  onClick={closeThen(openWithdraw)}
                 >
                   Withdraw
-                </CroppedButton>
+                </Button>
               </div>
             </div>
 
             <button
               type="button"
-              onClick={logout}
+              onClick={logOut}
               className="w-full cursor-pointer px-4 py-3 text-left text-sm text-down transition-colors hover:bg-[rgb(253_75_78_/_0.1)]"
             >
               Log out
@@ -179,6 +151,19 @@ export function AccountMenu() {
           </motion.div>
         )}
       </div>
+    </div>
+  );
+}
+
+function SignInLink() {
+  return (
+    <div className="flex w-full items-stretch overflow-hidden rounded-md border border-hairline bg-panel">
+      <Link
+        href="/signin"
+        className="flex w-full items-center justify-center bg-accent px-4 text-sm font-medium text-[#062018] transition-[filter] hover:brightness-110"
+      >
+        Sign in
+      </Link>
     </div>
   );
 }

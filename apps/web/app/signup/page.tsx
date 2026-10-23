@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
+import { ErrorNotice } from "@/components/ui/error-notice";
 import { Input } from "@/components/ui/input";
-import { signInDemo } from "@/lib/demo-account";
-import { apiFetch } from "@/lib/http";
+import { DEMO_ACCOUNT, signIn, signUp } from "@/lib/api/auth";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -29,10 +29,7 @@ export default function SignUpPage() {
 
     setLoading(true);
     try {
-      await apiFetch<{ userId: string }>("/auth/signup", {
-        method: "POST",
-        body: { name, email, password },
-      });
+      await signUp({ name, email, password });
       router.push("/signin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
@@ -45,7 +42,7 @@ export default function SignUpPage() {
     setError("");
     setLoading(true);
     try {
-      await signInDemo();
+      await signIn(DEMO_ACCOUNT);
       router.push("/trade/BTC");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
@@ -70,11 +67,7 @@ export default function SignUpPage() {
       }
     >
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        {error && (
-          <p className="rounded-md bg-[rgb(253_75_78_/_0.12)] px-3 py-2 text-xs text-down">
-            {error}
-          </p>
-        )}
+        <ErrorNotice message={error} />
         <label className="flex flex-col gap-1.5">
           <span className="text-xs text-ink-muted">Name</span>
           <Input

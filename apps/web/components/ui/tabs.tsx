@@ -2,16 +2,15 @@
 
 import { cn } from "@/lib/cn";
 
-export interface TabItem {
-  value: string;
+export interface TabItem<T extends string> {
+  value: T;
   label: string;
-  count?: number;
 }
 
-export interface TabsProps {
-  items: TabItem[];
-  value: string;
-  onValueChange: (value: string) => void;
+export interface TabsProps<T extends string> {
+  items: readonly TabItem<T>[];
+  value: T;
+  onValueChange: (value: T) => void;
   size?: "sm" | "md";
   className?: string;
 }
@@ -20,22 +19,20 @@ const SIZES = {
   sm: {
     container: "gap-0.5 rounded-md p-0.5",
     button: "h-7 rounded-md px-3 text-xs font-medium",
-    count: "text-[11px]",
   },
   md: {
     container: "gap-1 rounded-md p-1",
     button: "h-8 rounded-md px-3.5 text-sm font-medium",
-    count: "text-xs",
   },
 } as const;
 
-export function Tabs({
+export function Tabs<T extends string>({
   items,
   value,
   onValueChange,
   size = "sm",
   className,
-}: TabsProps) {
+}: TabsProps<T>) {
   const styles = SIZES[size];
 
   return (
@@ -65,17 +62,6 @@ export function Tabs({
             )}
           >
             {item.label}
-            {item.count !== undefined && (
-              <span
-                className={cn(
-                  "tabular",
-                  styles.count,
-                  active ? "text-accent" : "text-ink-dim",
-                )}
-              >
-                {item.count}
-              </span>
-            )}
           </button>
         );
       })}

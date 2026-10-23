@@ -1,86 +1,97 @@
 import {
   BOT_DEPOSIT,
-  MAKER,
+  BOT_MAKER,
+  BOT_TAKER,
   MARKETS,
-  TAKER,
-  connect,
+  type DemoMarket,
+} from "./settings.ts";
+import {
+  connectToRedis,
   createMarket,
   deposit,
-  limitOrder,
-  marketOrder,
-  markOf,
+  getMarkPrice,
+  placeLimitOrder,
+  placeMarketOrder,
   sleep,
-} from "./lib.ts";
-import { disconnect, ensureUsers, waitForMarkets } from "./db.ts";
+} from "./engine-commands.ts";
+import {
+  closeDatabase,
+  createDemoUsers,
+  waitForMarketsInDatabase,
+} from "./database.ts";
 
 const TICK_MS = 1500;
+const PRICE_REFRESH_TICKS = 4;
 
-await connect();
+const livePrices = new Map<string, number>();
 
-await ensureUsers();
-for (const market of MARKETS) await createMarket(market.slug);
-await waitForMarkets();
-
-await deposit(MAKER, BOT_DEPOSIT);
-await deposit(TAKER, BOT_DEPOSIT);
-await sleep(600);
-
-const marks = new Map<string, number>();
-
-const refreshMarks = async () => {
+const refreshLivePrices = async () => {
   for (const market of MARKETS) {
-    const mark = await markOf(market.slug);
-    if (mark !== null) marks.set(market.slug, mark);
+    const price = await getMarkPrice(market.slug);
+    if (price !== null) livePrices.set(market.slug, price);
   }
 };
 
-await refreshMarks();
-console.log(
-  "demo bot started — quoting + crossing on",
-  MARKETS.map((market) => market.slug).join(", "),
-);
+const randomSpread = () => 0.00005 + Math.random() * 0.0003;
+
+const quoteAndTrade = async (market: DemoMarket) => {
+  const price = livePrices.get(market.slug) ?? market.fallbackPrice;
+  const buyPrice = price * (1 - randomSpread());
+  const sellPrice = price * (1 + randomSpread());
+
+  await placeLimitOrder({
+    userId: BOT_MAKER,
+    market: market.slug,
+    side: "LONG",
+    price: buyPrice.toFixed(market.decimals),
+    quantity: market.botQuoteQuantity,
+  });
+  await placeLimitOrder({
+    userId: BOT_MAKER,
+    market: market.slug,
+    side: "SHORT",
+    price: sellPrice.toFixed(market.decimals),
+    quantity: market.botQuoteQuantity,
+  });
+
+  await placeMarketOrder({
+    userId: BOT_TAKER,
+    market: market.slug,
+    side: Math.random() > 0.5 ? "LONG" : "SHORT",
+    quantity: market.botTradeQuantity,
+  });
+};
 
 const stop = async () => {
-  await disconnect();
+  await closeDatabase();
   process.exit(0);
 };
 
 process.on("SIGINT", () => void stop());
 process.on("SIGTERM", () => void stop());
 
-let tick = 0;
-const run = async () => {
-  while (true) {
-    tick += 1;
-    if (tick % 4 === 1) await refreshMarks();
+await connectToRedis();
 
-    for (const market of MARKETS) {
-      const center = marks.get(market.slug) ?? market.fallback;
-      const bid = center * (1 - (0.00005 + Math.random() * 0.0003));
-      const ask = center * (1 + (0.00005 + Math.random() * 0.0003));
+await createDemoUsers();
+for (const market of MARKETS) await createMarket(market.slug);
+await waitForMarketsInDatabase();
 
-      await limitOrder(
-        MAKER,
-        market.slug,
-        "LONG",
-        bid.toFixed(market.dp),
-        market.restQty,
-      );
-      await limitOrder(
-        MAKER,
-        market.slug,
-        "SHORT",
-        ask.toFixed(market.dp),
-        market.restQty,
-      );
+await deposit(BOT_MAKER, BOT_DEPOSIT);
+await deposit(BOT_TAKER, BOT_DEPOSIT);
 
-      const side = Math.random() > 0.5 ? "LONG" : "SHORT";
-      await marketOrder(TAKER, market.slug, side, market.takerQty);
-    }
+await refreshLivePrices();
+console.log(
+  "demo bot started on",
+  MARKETS.map((market) => market.slug).join(", "),
+);
 
-    if (tick % 10 === 0) console.log(`demo bot tick ${tick}`);
-    await sleep(TICK_MS);
+for (let tick = 1; ; tick++) {
+  if (tick % PRICE_REFRESH_TICKS === 0) await refreshLivePrices();
+
+  for (const market of MARKETS) {
+    await quoteAndTrade(market);
   }
-};
 
-void run();
+  if (tick % 10 === 0) console.log(`demo bot tick ${tick}`);
+  await sleep(TICK_MS);
+}

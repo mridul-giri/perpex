@@ -1,53 +1,57 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { BalanceContext } from "@/components/balance/balance-context";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
 import { DepositModal } from "@/components/modals/deposit-modal";
 import { WithdrawModal } from "@/components/modals/withdraw-modal";
-import "@/lib/auth";
-import { PerpexTrading, type Balance } from "@/lib/trading";
+import { usePolling } from "@/hooks/use-polling";
+import { getBalance } from "@/lib/api/account";
+import { isSignedIn } from "@/lib/session";
+import type { Balance } from "@/lib/types";
 
-const EMPTY: Balance = { availableBalance: "0", lockedBalance: "0" };
+const EMPTY_BALANCE: Balance = { availableBalance: "0", lockedBalance: "0" };
 const POLL_MS = 5000;
-const trading = new PerpexTrading();
+
+interface BalanceContextValue {
+  balance: Balance; // exact decimal strings from the API
+  available: number; // the same values as numbers, for display and maths
+  locked: number;
+  refresh: () => void;
+  openDeposit: () => void;
+  openWithdraw: () => void;
+}
+
+const BalanceContext = createContext<BalanceContextValue | null>(null);
 
 export function BalanceProvider({ children }: { children: React.ReactNode }) {
-  const [balance, setBalance] = useState<Balance>(EMPTY);
+  const [balance, setBalance] = useState<Balance>(EMPTY_BALANCE);
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
 
-  const refresh = useCallback(async () => {
+  const loadBalance = useCallback(async () => {
+    if (!isSignedIn()) {
+      setBalance(EMPTY_BALANCE);
+      return;
+    }
     try {
-      setBalance(await trading.getBalance());
+      setBalance(await getBalance());
     } catch {}
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const next = await trading.getBalance();
-        if (!cancelled) setBalance(next);
-      } catch {}
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  usePolling(loadBalance, POLL_MS);
+  const refresh = useCallback(() => void loadBalance(), [loadBalance]);
 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
-    }, POLL_MS);
-    return () => clearInterval(intervalId);
-  }, [refresh]);
-
-  const value = useMemo(
+  const value = useMemo<BalanceContextValue>(
     () => ({
       balance,
-      availableNum: Number(balance.availableBalance),
-      lockedNum: Number(balance.lockedBalance),
-      refresh: () => void refresh(),
+      available: Number(balance.availableBalance),
+      locked: Number(balance.lockedBalance),
+      refresh,
       openDeposit: () => setDepositOpen(true),
       openWithdraw: () => setWithdrawOpen(true),
     }),
@@ -57,11 +61,24 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
   return (
     <BalanceContext.Provider value={value}>
       {children}
-      <DepositModal open={depositOpen} onClose={() => setDepositOpen(false)} />
+      <DepositModal
+        open={depositOpen}
+        onClose={() => setDepositOpen(false)}
+        available={value.available}
+        onDone={refresh}
+      />
       <WithdrawModal
         open={withdrawOpen}
         onClose={() => setWithdrawOpen(false)}
+        availableText={balance.availableBalance}
+        onDone={refresh}
       />
     </BalanceContext.Provider>
   );
+}
+
+export function useBalance() {
+  const value = useContext(BalanceContext);
+  if (!value) throw new Error("useBalance must be used inside BalanceProvider");
+  return value;
 }
