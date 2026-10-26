@@ -43,7 +43,7 @@ export const writeCandleHistory = async (
     where: { marketSlug: market.slug },
   });
   if (!marketRow) {
-    console.log(`skipping candles for ${market.slug}: market not found`);
+    console.warn(`skipping candles for ${market.slug}: market not found`);
     return;
   }
 
@@ -62,8 +62,6 @@ export const writeCandleHistory = async (
     })),
     skipDuplicates: true,
   });
-
-  console.log(`wrote ${candles.length} candles for ${market.slug}`);
 };
 
 interface Candle {
@@ -148,7 +146,6 @@ export const refreshCandleViews = async () => {
         `CALL refresh_continuous_aggregate('${view}', NULL, NULL)`,
       );
     }
-    console.log("refreshed candle views");
   } catch (error) {
     console.warn("candle view refresh skipped:", error);
   } finally {

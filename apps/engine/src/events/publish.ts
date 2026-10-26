@@ -17,7 +17,9 @@ export const publishError = async (
   correlationId: string | undefined,
   error: unknown,
 ) => {
-  console.log("caught some error for user request", error);
+  if (!(error instanceof EngineError)) {
+    console.error("unexpected error handling user request", error);
+  }
   await publishToStream(config.ORDERS_ACK, {
     correlationId,
     ok: false,

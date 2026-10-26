@@ -92,6 +92,5 @@ for (let tick = 1; ; tick++) {
     await quoteAndTrade(market);
   }
 
-  if (tick % 10 === 0) console.log(`demo bot tick ${tick}`);
   await sleep(TICK_MS);
 }

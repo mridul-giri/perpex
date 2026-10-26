@@ -97,16 +97,10 @@ const placeFirstTrades = async (market: DemoMarket) => {
 
 await connectToRedis();
 
-console.log("1. creating demo users");
 await createDemoUsers();
-
-console.log("2. creating markets");
 await createMarkets();
-
-console.log("3. funding demo users");
 await fundUsers();
 
-console.log("4-5. placing ladders and first trades");
 const livePrices = new Map<string, number>();
 for (const market of MARKETS) {
   const price = await waitForLivePrice(market);
@@ -116,7 +110,6 @@ for (const market of MARKETS) {
   await placeFirstTrades(market);
 }
 
-console.log("6. writing candle history");
 for (const market of MARKETS) {
   await writeCandleHistory(market, livePrices.get(market.slug)!);
 }

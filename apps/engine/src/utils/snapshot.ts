@@ -21,10 +21,7 @@ export const takeSnapshot = async (
   engineManager: EngineManager,
   offset: string | null,
 ): Promise<string | null> => {
-  if (!s3Configured()) {
-    console.warn("S3 not configured; skipping snapshot");
-    return null;
-  }
+  if (!s3Configured()) return null;
 
   const state: SnapshotState = {
     takenAt: Date.now(),
@@ -43,7 +40,7 @@ export const takeSnapshot = async (
 
 export const loadLatestSnapshot = async (): Promise<SnapshotState | null> => {
   if (!s3Configured()) {
-    console.warn("S3 not configured; starting with empty state");
+    console.warn("S3 not configured; running without snapshots");
     return null;
   }
 

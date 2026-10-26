@@ -1,0 +1,32 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [api, engine, ws, price-feed, poller, demo, web]
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v4
+
+      - name: Docker login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./docker/Dockerfile.${{ matrix.app }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://perpex.mridulgiri.com/api/v1
+            NEXT_PUBLIC_WS_URL=wss://perpex.mridulgiri.com/ws
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/perpex-${{ matrix.app }}:${{ github.sha }}

@@ -1,0 +1,18 @@
+FROM oven/bun:1
+
+WORKDIR /usr/src/app
+
+COPY ./package.json ./package.json
+COPY ./bun.lock ./bun.lock
+
+COPY ./packages ./packages
+
+COPY ./apps/demo ./apps/demo
+
+RUN bun install
+
+RUN cd packages/db && bunx prisma generate
+
+WORKDIR /usr/src/app/apps/demo
+
+CMD ["bun", "run", "src/seed.ts"]

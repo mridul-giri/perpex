@@ -1,0 +1,16 @@
+FROM oven/bun:1
+
+WORKDIR /usr/src/app
+
+COPY ./package.json ./package.json
+COPY ./bun.lock ./bun.lock
+
+COPY ./packages ./packages
+
+COPY ./apps/price-feed ./apps/price-feed
+
+RUN bun install
+
+WORKDIR /usr/src/app/apps/price-feed
+
+CMD ["bun", "run", "src/index.ts"]

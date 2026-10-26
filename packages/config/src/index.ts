@@ -18,7 +18,7 @@ export const config = {
   FUNDING_INTERVAL_SECONDS: Number(
     process.env.FUNDING_INTERVAL_SECONDS ?? "28800",
   ),
-  SNAPSHOT_INTERVAL: Number(process.env.SNAPSHOT_INTERVAL ?? "300"),
+  SNAPSHOT_INTERVAL: Number(process.env.SNAPSHOT_INTERVAL ?? "900"),
   S3_BUCKET: process.env.S3_BUCKET,
   AWS_REGION: process.env.AWS_REGION,
   AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,

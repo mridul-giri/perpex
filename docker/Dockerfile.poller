@@ -1,0 +1,18 @@
+FROM oven/bun:1
+
+WORKDIR /usr/src/app
+
+COPY ./package.json ./package.json
+COPY ./bun.lock ./bun.lock
+
+COPY ./packages ./packages
+
+COPY ./apps/poller ./apps/poller
+
+RUN bun install
+
+RUN cd packages/db && bunx prisma generate
+
+WORKDIR /usr/src/app/apps/poller
+
+CMD ["bun", "run", "src/index.ts"]

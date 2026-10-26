@@ -6,22 +6,13 @@ export const replayMissed = async (
   fromOffset: string | null,
   handler: (data: unknown, id: string) => Promise<void>,
 ): Promise<number> => {
-  if (!fromOffset) {
-    console.log("no snapshot offset; nothing to replay");
-    return 0;
-  }
+  if (!fromOffset) return 0;
 
   const groupOffset = await getGroupOffset(streamKey, group);
-  if (!groupOffset) {
-    console.log("no consumer-group offset; nothing to replay");
-    return 0;
-  }
+  if (!groupOffset) return 0;
 
   const missed = await readStreamRange(streamKey, fromOffset, groupOffset);
-  if (missed.length === 0) {
-    console.log("no missed messages to replay");
-    return 0;
-  }
+  if (missed.length === 0) return 0;
 
   console.log(`replaying ${missed.length} missed messages`);
 

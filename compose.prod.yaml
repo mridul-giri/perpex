@@ -1,0 +1,100 @@
+name: perpex
+
+x-app: &app
+  restart: unless-stopped
+  env_file: .env
+  environment: &app-env
+    REDIS_URL: redis://redis:6379
+    DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgresdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+
+  migrate:
+    <<: *app
+    image: ${DOCKERHUB_USERNAME}/perpex-api:${TAG}
+    restart: "no"
+    working_dir: /usr/src/app/packages/db
+    command: ["bunx", "prisma", "migrate", "deploy"]
+    depends_on: [postgres]
+
+  engine:
+    <<: *app
+    image: ${DOCKERHUB_USERNAME}/perpex-engine:${TAG}
+    depends_on: [redis]
+
+  poller:
+    <<: *app
+    image: ${DOCKERHUB_USERNAME}/perpex-poller:${TAG}
+    depends_on:
+      redis:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+
+  price-feed:
+    <<: *app
+    image: ${DOCKERHUB_USERNAME}/perpex-price-feed:${TAG}
+    depends_on: [redis]
+
+  api:
+    <<: *app
+    image: ${DOCKERHUB_USERNAME}/perpex-api:${TAG}
+    environment:
+      <<: *app-env
+      FRONTEND_URL: https://perpex.mridulgiri.com
+    ports:
+      - 127.0.0.1:3001:3001
+    depends_on:
+      redis:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+
+  ws:
+    <<: *app
+    image: ${DOCKERHUB_USERNAME}/perpex-ws:${TAG}
+    ports:
+      - 127.0.0.1:3002:3002
+    depends_on: [redis]
+
+  web:
+    <<: *app
+    image: ${DOCKERHUB_USERNAME}/perpex-web:${TAG}
+    ports:
+      - 127.0.0.1:3000:3000
+
+  demo-seed:
+    <<: *app
+    image: ${DOCKERHUB_USERNAME}/perpex-demo:${TAG}
+    restart: "no"
+    profiles: [seed]
+    environment:
+      <<: *app-env
+      API_URL: http://api:3001
+
+  demo-bot:
+    <<: *app
+    image: ${DOCKERHUB_USERNAME}/perpex-demo:${TAG}
+    profiles: [bot]
+    command: ["bun", "run", "src/bot.ts"]
+    environment:
+      <<: *app-env
+      API_URL: http://api:3001
+
+volumes:
+  postgresdata:
+  redisdata:

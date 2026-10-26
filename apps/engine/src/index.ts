@@ -106,14 +106,13 @@ const handleCommand = async (data: unknown, id: string) => {
   }
 };
 
-const requestShutdown = (signal: string) => {
-  console.log(`${signal} received`);
+const requestShutdown = () => {
   shutdownRequested = true;
   if (!commandRunning) void snapshotAndExit();
 };
 
-process.on("SIGINT", () => requestShutdown("SIGINT"));
-process.on("SIGTERM", () => requestShutdown("SIGTERM"));
+process.on("SIGINT", requestShutdown);
+process.on("SIGTERM", requestShutdown);
 
 startSnapshotTimer(() => {
   snapshotDue = true;

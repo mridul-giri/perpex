@@ -1,0 +1,27 @@
+# Installed fresh inside the image; the host copies are for macOS, not Linux.
+**/node_modules
+
+# Build output and caches; each image builds its own.
+**/.next
+**/.turbo
+**/dist
+**/out
+
+# The Prisma client is generated inside the image (`prisma generate`).
+packages/db/src/generated
+
+# Secrets never go into an image; compose passes env at runtime.
+.env
+.env.*
+!.env.example
+*.pem
+
+# Repo and tooling files no image needs.
+.git
+.github
+.claude
+.impeccable
+docs
+docker
+*.md
+.DS_Store
