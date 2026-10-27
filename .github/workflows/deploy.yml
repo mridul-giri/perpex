@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,16 +16,16 @@ jobs:
         app: [api, engine, ws, price-feed, poller, demo, web]
     steps:
       - name: Checkout the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Docker login
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.${{ matrix.app }}
@@ -30,3 +34,28 @@ jobs:
             NEXT_PUBLIC_WS_URL=wss://perpex.mridulgiri.com/ws
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/perpex-${{ matrix.app }}:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v7
+
+      - name: Deploy to the EC2
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/ssh_key
+          chmod 600 ~/ssh_key
+
+          scp -o StrictHostKeyChecking=no -i ~/ssh_key compose.prod.yaml ubuntu@${{ secrets.EC2_HOST }}:~/perpex/compose.prod.yaml
+
+          ssh -o StrictHostKeyChecking=no -i ~/ssh_key ubuntu@${{ secrets.EC2_HOST }} "
+            cd ~/perpex &&
+            sed -i -e '/^TAG=/d' -e '\$a\\' .env &&
+            echo 'TAG=${{ github.sha }}' >> .env &&
+            docker compose -f compose.prod.yaml pull &&
+            docker compose -f compose.prod.yaml up -d &&
+            docker image prune -af
+          "
+
+          rm ~/ssh_key
