@@ -67,6 +67,8 @@ Nothing calls anything over HTTP. Every command and result is a message:
 | `apps/poller`     | –      | Persists markets, orders, fills, balances, closed positions and liquidations to Postgres. |
 | `apps/price-feed` | –      | Streams the Binance mark/index price into the engine and schedules funding settlements.   |
 | `apps/ws`         | `3002` | Read-only WebSocket feed of live `depth` and `trade`.                                     |
+| `apps/web`        | `3000` | Next.js trading terminal: chart, order book, order form, account.                         |
+| `apps/demo`       | –      | Demo tooling: a one-shot seed and a market-maker bot that keeps the book moving.          |
 
 ### Money & data
 
@@ -86,7 +88,7 @@ Express (Zod validation) · JWT/bcrypt · `ws` for WebSockets.
 
 ```bash
 bun install
-docker compose -f docker/compose.yaml up -d          # redis :6379, postgres :5432
+docker compose up -d                                  # redis :6379, postgres :5432
 
 cp .env.example .env                                  # then fill AUTH_SECRET
 
@@ -111,6 +113,9 @@ cd apps/demo && bun run bot
 # the trading terminal (reads the same root .env)
 cd apps/web && bun run dev                           # :3000
 ```
+
+After seeding, sign in as `alice@demo.local` / `demo1234` (also `bob`, `carol`,
+`dave`, `erin`, `frank`).
 
 Optional env: `WS_PORT`, `SNAPSHOT_INTERVAL`, `FUNDING_INTERVAL_SECONDS`,
 `RES_TIMEOUT`. S3 snapshots need `S3_BUCKET`, `AWS_REGION`,
