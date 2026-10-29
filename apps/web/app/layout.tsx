@@ -1,18 +1,16 @@
 import type { Metadata } from "next";
-import { Inter, VT323 } from "next/font/google";
-import { BalanceProvider } from "@/components/balance/balance-provider";
+import { Reddit_Mono, Roboto_Mono } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const redditMono = Reddit_Mono({
+  variable: "--font-reddit-mono",
   subsets: ["latin"],
   display: "swap",
 });
 
-const vt323 = VT323({
-  variable: "--font-vt323",
+const robotoMono = Roboto_Mono({
+  variable: "--font-roboto-mono",
   subsets: ["latin"],
-  weight: "400",
   display: "swap",
 });
 
@@ -30,11 +28,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${vt323.variable} h-full antialiased`}
+      className={`${redditMono.variable} ${robotoMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-ground text-ink">
-        <BalanceProvider>{children}</BalanceProvider>
-      </body>
+      <body className="min-h-full bg-ground text-ink">{children}</body>
     </html>
   );
 }

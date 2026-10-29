@@ -1,7 +1,7 @@
 import { INSURANCE_FUND_SEED, InsuranceFunds } from "../store/store";
 
 export class InsuranceFund {
-  seed(market: string, amount: bigint = INSURANCE_FUND_SEED) {
+  seed(market: string, amount = INSURANCE_FUND_SEED) {
     InsuranceFunds.set(market, amount);
   }
 
@@ -13,7 +13,7 @@ export class InsuranceFund {
     return this.getFund(market) >= amount;
   }
 
-  drawUpTo(market: string, amount: bigint): bigint {
+  drawUpTo(market: string, amount: bigint) {
     const available = this.getFund(market);
     if (amount <= 0n || available <= 0n) return 0n;
 
@@ -23,7 +23,7 @@ export class InsuranceFund {
     return drawn;
   }
 
-  exportState(): [string, bigint][] {
+  exportState() {
     return Array.from(InsuranceFunds.entries());
   }
 

@@ -20,7 +20,7 @@ interface SnapshotState {
 export const takeSnapshot = async (
   engineManager: EngineManager,
   offset: string | null,
-): Promise<string | null> => {
+) => {
   if (!s3Configured()) return null;
 
   const state: SnapshotState = {
@@ -38,7 +38,7 @@ export const takeSnapshot = async (
   return key;
 };
 
-export const loadLatestSnapshot = async (): Promise<SnapshotState | null> => {
+export const loadLatestSnapshot = async () => {
   if (!s3Configured()) {
     console.warn("S3 not configured; running without snapshots");
     return null;

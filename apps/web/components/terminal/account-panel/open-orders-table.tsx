@@ -43,7 +43,7 @@ export function OpenOrdersTable({
               type="button"
               disabled={cancellingId === order.orderId}
               onClick={() => onCancel(order)}
-              className="cursor-pointer rounded-md bg-panel-raised px-2.5 py-1 text-[11px] font-medium text-ink-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              className="cursor-pointer rounded-md bg-panel-raised px-2.5 py-1 text-[12px] font-medium text-ink-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
             >
               {cancellingId === order.orderId ? "Cancelling…" : "Cancel"}
             </button>

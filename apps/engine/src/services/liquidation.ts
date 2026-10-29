@@ -9,10 +9,7 @@ export class LiquidationManager {
 
   constructor(private readonly engineManager: EngineManager) {}
 
-  async liquidateUnderwater(
-    market: string,
-    markPrice: bigint,
-  ): Promise<LiquidatedUser[]> {
+  async liquidateUnderwater(market: string, markPrice: bigint) {
     const engine = this.engineManager.get(market);
     if (!engine) return [];
 

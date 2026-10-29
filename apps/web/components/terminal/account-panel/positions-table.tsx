@@ -52,7 +52,7 @@ export function PositionsTable({
                 type="button"
                 disabled={closingMarket !== null}
                 onClick={() => onClose(position)}
-                className="cursor-pointer rounded-md bg-[rgb(253_75_78_/_0.15)] px-2.5 py-1 text-[11px] font-medium text-down transition-colors hover:bg-[rgb(253_75_78_/_0.25)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="cursor-pointer rounded-md bg-[rgb(253_75_78_/_0.15)] px-2.5 py-1 text-[12px] font-medium text-down transition-colors hover:bg-[rgb(253_75_78_/_0.25)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {closingMarket === position.market
                   ? "Closing…"

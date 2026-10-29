@@ -6,19 +6,13 @@ export interface Match {
   maker: EngineMakerFill;
 }
 
-export interface MatchResult {
-  matches: Match[];
-  remainingQuantity: bigint;
-  filledValue: bigint;
-}
-
 export class MatchingEngine {
   match(
     taker: EnginePayload,
     takerOrderId: string,
     worstPrice: bigint,
     book: BookManager,
-  ): MatchResult {
+  ) {
     let remainingQuantity = taker.quantity;
     let filledValue = 0n;
     const matches: Match[] = [];

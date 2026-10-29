@@ -4,18 +4,12 @@ import { SCALE } from "../utils/conversion";
 import { insuranceFund } from "./insurance-fund";
 import { PositionManager } from "./position-manager";
 
-export interface FundingResult {
-  rateBps: bigint;
-  payments: number;
-  usedInsuranceFund: bigint;
-}
-
 const BASIS_POINTS = 10000n;
 
 export class FundingManager {
   private positionManager = new PositionManager();
 
-  settle(market: string, rateBps: bigint, markPrice: bigint): FundingResult {
+  settle(market: string, rateBps: bigint, markPrice: bigint) {
     let payments = 0;
     let usedInsuranceFund = 0n;
 

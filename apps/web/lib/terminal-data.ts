@@ -22,9 +22,7 @@ export interface TerminalData {
   ticker: Ticker;
 }
 
-export const loadTerminalData = async (
-  market: MarketConfig,
-): Promise<TerminalData> => {
+export const loadTerminalData = async (market: MarketConfig) => {
   const [candles, trades, depth, risk] = await Promise.all([
     getCandles(market.slug, DEFAULT_INTERVAL, CHART_CANDLE_LIMIT),
     getTrades(market.slug, RECENT_TRADES),
@@ -52,9 +50,7 @@ export interface MarketSummary {
   volume: string;
 }
 
-const loadMarketSummary = async (
-  market: MarketConfig,
-): Promise<MarketSummary> => {
+const loadMarketSummary = async (market: MarketConfig) => {
   const [risk, hourlyCandles] = await Promise.all([
     getMarketRisk(market.slug),
     getCandles(market.slug, "1h", 24),

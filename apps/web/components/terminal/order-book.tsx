@@ -23,7 +23,7 @@ interface BookRow {
   total: number;
 }
 
-const withRunningTotal = (levels: DepthLevel[]): BookRow[] => {
+const withRunningTotal = (levels: DepthLevel[]) => {
   let total = 0;
   return levels.map(([price, size]) => {
     total += Number(size);

@@ -1,15 +1,6 @@
 import { prisma, Prisma } from "@perpex/db";
 import { ApiError } from "../utils/api-error";
 
-export interface Candle {
-  timestamp: number;
-  open: string;
-  high: string;
-  low: string;
-  close: string;
-  volume: string;
-}
-
 const INTERVAL_VIEWS: Record<string, string | null> = {
   "1m": null,
   "5m": "candles_5m",
@@ -19,7 +10,7 @@ const INTERVAL_VIEWS: Record<string, string | null> = {
   "1d": "candles_1d",
 };
 
-const toDate = (value: string): Date => {
+const toDate = (value: string) => {
   const numeric = Number(value);
   const date = Number.isNaN(numeric)
     ? new Date(value)
@@ -45,7 +36,7 @@ export const queryCandles = async (params: {
   from?: string;
   to?: string;
   limit: number;
-}): Promise<Candle[]> => {
+}) => {
   const { market, interval, from, to, limit } = params;
 
   if (!(interval in INTERVAL_VIEWS)) {

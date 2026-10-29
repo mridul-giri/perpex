@@ -23,7 +23,7 @@ export class EngineManager {
     return this.markets.get(marketSlug);
   }
 
-  exportState(): EngineMarketState[] {
+  exportState() {
     return [...this.markets.values()].map((engine) => engine.exportState());
   }
 

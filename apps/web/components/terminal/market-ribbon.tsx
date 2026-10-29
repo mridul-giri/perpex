@@ -24,7 +24,7 @@ export function MarketRibbon({ market, ticker, risk }: MarketRibbonProps) {
   const up = Number(ticker.changePct) >= 0;
 
   return (
-    <div className="flex min-w-0 items-stretch rounded-md border border-hairline bg-panel px-2 py-3">
+    <div className="flex min-w-0 items-stretch px-2 py-3">
       <MarketSwitcher market={market} />
 
       <Stat
@@ -127,7 +127,7 @@ function MarketSwitcher({ market }: { market: MarketConfig }) {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-md border border-hairline bg-panel shadow-float">
+        <div className="absolute left-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-md border border-dashed border-white/[0.14] bg-ground shadow-float">
           {MARKETS.map((item) => (
             <button
               key={item.symbol}

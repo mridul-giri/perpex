@@ -4,7 +4,7 @@ import { UserService } from "./user";
 import { MatchingEngine } from "./matching-engine";
 import type { Match } from "./matching-engine";
 import { BookManager } from "./book-manager";
-import type { BookState, Depth } from "./book-manager";
+import type { BookState } from "./book-manager";
 import { PositionManager } from "./position-manager";
 import { insuranceFund } from "./insurance-fund";
 import {
@@ -451,11 +451,11 @@ export class OrderBook {
     return this.book.getIndexPrice();
   }
 
-  getDepth(): Depth {
+  getDepth() {
     return this.book.getDepth();
   }
 
-  exportState(): BookState {
+  exportState() {
     return this.book.exportState();
   }
 

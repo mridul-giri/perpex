@@ -3,7 +3,7 @@ const USER_ID_KEY = "perpex_userId";
 
 const inBrowser = () => typeof window !== "undefined";
 
-export const getToken = (): string | null =>
+export const getToken = () =>
   inBrowser() ? localStorage.getItem(TOKEN_KEY) : null;
 
 export const isSignedIn = () => getToken() !== null;
@@ -20,7 +20,7 @@ export const clearSession = () => {
   localStorage.removeItem(USER_ID_KEY);
 };
 
-export const getUserName = (): string | null => {
+export const getUserName = () => {
   const payload = getToken()?.split(".")[1];
   if (!payload) return null;
 

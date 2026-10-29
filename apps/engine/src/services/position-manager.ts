@@ -16,7 +16,7 @@ export class PositionManager {
     payload: EnginePayload,
     fill: EngineFill,
     fillMargin: bigint,
-  ): EngineClosedPosition | null {
+  ) {
     const position = user.positions.get(payload.market);
 
     if (!position) {
@@ -104,7 +104,7 @@ export class PositionManager {
     payload: EnginePayload,
     fill: EngineFill,
     fillMargin: bigint,
-  ): EngineClosedPosition {
+  ) {
     const pnl = this.calculateRealizedPnl(
       position,
       fill.price,
@@ -136,7 +136,7 @@ export class PositionManager {
     payload: EnginePayload,
     fill: EngineFill,
     fillMargin: bigint,
-  ): EngineClosedPosition {
+  ) {
     const closedQuantity = position.quantity;
     const flippedQuantity = fill.quantity - closedQuantity;
     const releasedMargin = position.margin;
@@ -189,7 +189,7 @@ export class PositionManager {
     position: EnginePosition,
     quantity: bigint,
     exitPrice: bigint,
-  ): EngineClosedPosition | null {
+  ) {
     if (quantity >= position.quantity) {
       return this.closeAtPrice(user, position, exitPrice);
     }
@@ -205,11 +205,7 @@ export class PositionManager {
     return null;
   }
 
-  closeAtPrice(
-    user: EngineUser,
-    position: EnginePosition,
-    exitPrice: bigint,
-  ): EngineClosedPosition {
+  closeAtPrice(user: EngineUser, position: EnginePosition, exitPrice: bigint) {
     const pnl = this.calculateRealizedPnl(
       position,
       exitPrice,

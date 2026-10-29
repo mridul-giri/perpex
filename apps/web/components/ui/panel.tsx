@@ -8,7 +8,7 @@ export function Panel({ flush, className, ...props }: PanelProps) {
   return (
     <section
       className={cn(
-        "rounded-md border border-hairline bg-panel",
+        "border-b border-r border-dashed border-white/[0.1] bg-ground",
         !flush && "p-4",
         className,
       )}

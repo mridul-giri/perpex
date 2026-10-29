@@ -44,7 +44,7 @@ export function Modal({ open, onClose, title, meta, children }: ModalProps) {
         initial={{ opacity: 0, y: 8, scale: 0.985 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.18, ease: "easeOut" }}
-        className="relative w-full max-w-sm rounded-md bg-panel p-5 shadow-float"
+        className="relative w-full max-w-sm rounded-md border border-dashed border-white/[0.14] bg-ground p-5 shadow-float"
       >
         <button
           type="button"

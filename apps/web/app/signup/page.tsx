@@ -3,10 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AuthButton, AuthField } from "@/components/auth/auth-form";
 import { AuthShell } from "@/components/auth/auth-shell";
-import { Button } from "@/components/ui/button";
 import { ErrorNotice } from "@/components/ui/error-notice";
-import { Input } from "@/components/ui/input";
 import { DEMO_ACCOUNT, signIn, signUp } from "@/lib/api/auth";
 
 export default function SignUpPage() {
@@ -52,82 +51,72 @@ export default function SignUpPage() {
 
   return (
     <AuthShell
-      title="Create account"
-      subtitle="Password: 8–50 characters."
+      title="Create your account"
+      subtitle="Trade BTC, ETH and SOL perpetuals with up to 50x leverage."
       footer={
         <>
           Already have an account?{" "}
           <Link
             href="/signin"
-            className="font-medium text-accent hover:underline"
+            className="font-medium text-ink underline-offset-4 hover:underline"
           >
             Log in
           </Link>
         </>
       }
     >
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <form onSubmit={onSubmit} className="flex flex-col gap-5">
         <ErrorNotice message={error} />
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-ink-muted">Name</span>
-          <Input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ada Lovelace"
-            autoComplete="name"
-          />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-ink-muted">Email</span>
-          <Input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            autoComplete="email"
-          />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-ink-muted">Password</span>
-          <Input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            autoComplete="new-password"
-          />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-ink-muted">Confirm password</span>
-          <Input
-            type="password"
-            required
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            placeholder="••••••••"
-            autoComplete="new-password"
-          />
-        </label>
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={loading}
-          className="mt-1 w-full"
-        >
-          {loading ? "Creating…" : "Create account"}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={loading}
-          className="w-full"
-          onClick={onUseDemo}
-        >
-          Use demo account
-        </Button>
+        <AuthField
+          label="Name"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ada Lovelace"
+          autoComplete="name"
+        />
+        <AuthField
+          label="Email"
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          autoComplete="email"
+        />
+        <AuthField
+          label="Password"
+          hint="8 to 50 characters."
+          type="password"
+          required
+          minLength={8}
+          maxLength={50}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          autoComplete="new-password"
+        />
+        <AuthField
+          label="Confirm password"
+          type="password"
+          required
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          placeholder="••••••••"
+          autoComplete="new-password"
+        />
+        <div className="mt-1 flex flex-col gap-3">
+          <AuthButton type="submit" disabled={loading}>
+            {loading ? "Creating account…" : "Create account"}
+          </AuthButton>
+          <AuthButton
+            variant="secondary"
+            disabled={loading}
+            onClick={onUseDemo}
+          >
+            Try the demo account
+          </AuthButton>
+        </div>
       </form>
     </AuthShell>
   );

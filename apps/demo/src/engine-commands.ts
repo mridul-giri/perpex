@@ -50,7 +50,7 @@ export const placeMarketOrder = (order: {
     ...order,
   });
 
-export const getMarkPrice = async (slug: string): Promise<number | null> => {
+export const getMarkPrice = async (slug: string) => {
   try {
     const response = await fetch(
       `${config.API_URL}/api/v1/markets/${slug}/risk`,

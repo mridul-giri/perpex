@@ -70,7 +70,7 @@ export class Engine {
     return this.orderBook.getDepth();
   }
 
-  exportState(): EngineMarketState {
+  exportState() {
     return {
       market: this.market,
       book: this.orderBook.exportState(),

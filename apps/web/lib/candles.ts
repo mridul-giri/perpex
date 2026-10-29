@@ -1,4 +1,4 @@
-import type { Candle, Ticker, Trade } from "@/lib/types";
+import type { Candle, Trade } from "@/lib/types";
 
 export const INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 export type Interval = (typeof INTERVALS)[number];
@@ -19,7 +19,7 @@ export const addTradeToCandles = (
   candles: Candle[],
   trade: Trade,
   interval: Interval,
-): Candle[] => {
+) => {
   const size = INTERVAL_SECONDS[interval];
   const bucket = Math.floor(trade.timestamp / size) * size;
   const last = candles[candles.length - 1];
@@ -47,7 +47,7 @@ export const addTradeToCandles = (
   return [...candles, candle];
 };
 
-export const tickerFromHourlyCandles = (hourlyCandles: Candle[]): Ticker => {
+export const tickerFromHourlyCandles = (hourlyCandles: Candle[]) => {
   const candles = hourlyCandles.slice(-24);
   const first = candles[0];
   const last = candles[candles.length - 1];

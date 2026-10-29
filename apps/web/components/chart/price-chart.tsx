@@ -8,7 +8,6 @@ import {
   LineSeries,
   LineStyle,
   createChart,
-  type CandlestickData,
   type IChartApi,
   type ISeriesApi,
   type LineData,
@@ -26,12 +25,10 @@ const BORDER = "rgba(255,255,255,0.06)";
 const CROSSHAIR = "rgba(255,255,255,0.22)";
 const CROSSHAIR_LABEL = "#202126";
 const PRICE_LINE = "rgba(255,255,255,0.35)";
-const MONO =
-  "ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace";
 const INITIAL_VISIBLE_CANDLES = 90;
 const SMA_PERIOD = 20;
 
-const toCandle = (c: Candle): CandlestickData => ({
+const toCandle = (c: Candle) => ({
   time: c.timestamp as UTCTimestamp,
   open: Number(c.open),
   high: Number(c.high),
@@ -39,7 +36,7 @@ const toCandle = (c: Candle): CandlestickData => ({
   close: Number(c.close),
 });
 
-const movingAverage = (candles: Candle[], period: number): LineData[] => {
+const movingAverage = (candles: Candle[], period: number) => {
   const out: LineData[] = [];
   let sum = 0;
   for (let i = 0; i < candles.length; i++) {
@@ -68,7 +65,7 @@ function OhlcLegend({ candle }: { candle: Candle }) {
     <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-3.5 rounded-md bg-ground/90 px-3 py-1.5">
       {cells.map(([label, value]) => (
         <div key={label} className="flex items-baseline gap-1">
-          <span className="text-[11px] text-ink-muted">{label}</span>
+          <span className="text-[12px] text-ink-muted">{label}</span>
           <span
             className={cn(
               "tabular text-xs font-medium",
@@ -146,8 +143,8 @@ export function PriceChart({
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: AXIS_TEXT,
-        fontFamily: MONO,
-        fontSize: 10,
+        fontFamily: getComputedStyle(container).fontFamily,
+        fontSize: 12,
       },
       localization: { locale: "en-US" },
     });

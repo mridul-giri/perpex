@@ -73,7 +73,7 @@ export function AccountPanel() {
           >
             {item}
             {counts[item] ? (
-              <span className="tabular rounded-md bg-panel-raised px-1.5 text-[11px] font-medium text-ink">
+              <span className="tabular rounded-md bg-panel-raised px-1.5 text-[12px] font-medium text-ink">
                 {counts[item]}
               </span>
             ) : null}

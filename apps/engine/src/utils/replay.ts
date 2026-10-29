@@ -5,7 +5,7 @@ export const replayMissed = async (
   group: string,
   fromOffset: string | null,
   handler: (data: unknown, id: string) => Promise<void>,
-): Promise<number> => {
+) => {
   if (!fromOffset) return 0;
 
   const groupOffset = await getGroupOffset(streamKey, group);

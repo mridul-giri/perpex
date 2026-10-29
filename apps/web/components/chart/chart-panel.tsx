@@ -32,7 +32,7 @@ export function ChartPanel({
     <div ref={panelRef} className="flex h-full flex-col">
       <div className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-hairline px-3 py-2">
         <span className="text-sm font-medium text-ink">Price</span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button
             variant="ghost"
             size="md"

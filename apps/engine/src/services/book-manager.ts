@@ -23,7 +23,7 @@ export class BookManager {
   private markPrice: bigint | undefined;
   private indexPrice: bigint | undefined;
 
-  bestOppositePrice(takerSide: OrderSide): bigint | undefined {
+  bestOppositePrice(takerSide: OrderSide) {
     return takerSide === "LONG" ? this.asksPrices[0] : this.bidsPrices[0];
   }
 
@@ -92,7 +92,7 @@ export class BookManager {
     return null;
   }
 
-  removeOrdersOf(userId: string): EngineOpenOrder[] {
+  removeOrdersOf(userId: string) {
     const userOrderIds: string[] = [];
 
     for (const levels of [this.bids, this.asks]) {
@@ -148,17 +148,14 @@ export class BookManager {
     return this.indexPrice;
   }
 
-  getDepth(): Depth {
+  getDepth() {
     return {
       bids: this.pricesToLevels(this.bidsPrices, this.bids),
       asks: this.pricesToLevels(this.asksPrices, this.asks),
     };
   }
 
-  private pricesToLevels(
-    prices: bigint[],
-    levels: Map<bigint, EngineSide>,
-  ): [string, string][] {
+  private pricesToLevels(prices: bigint[], levels: Map<bigint, EngineSide>) {
     const depth: [string, string][] = [];
 
     for (const price of prices) {
@@ -176,7 +173,7 @@ export class BookManager {
     return depth;
   }
 
-  exportState(): BookState {
+  exportState() {
     return {
       bids: this.bids,
       asks: this.asks,

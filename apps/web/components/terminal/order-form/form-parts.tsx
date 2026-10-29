@@ -169,7 +169,7 @@ export function PercentSlider({
         className="h-1.5 w-full cursor-pointer appearance-none rounded-md bg-panel-raised"
         style={{ accentColor: color }}
       />
-      <div className="mt-1 flex justify-between text-[11px] text-ink-dim">
+      <div className="mt-1 flex justify-between text-[12px] text-ink-dim">
         {PERCENT_STOPS.map((stop) => (
           <button
             key={stop}

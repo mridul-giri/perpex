@@ -30,24 +30,28 @@ export function Terminal({ market, initial, summaries }: TerminalProps) {
 
   return (
     <>
-      <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <MarketRibbon
-          market={market}
-          ticker={initial.ticker}
-          risk={live.risk}
-        />
-        <AccountMenu />
+      <div className="grid items-stretch lg:grid-cols-[minmax(0,1fr)_340px]">
+        <Panel flush>
+          <MarketRibbon
+            market={market}
+            ticker={initial.ticker}
+            risk={live.risk}
+          />
+        </Panel>
+        <Panel flush className="flex">
+          <AccountMenu />
+        </Panel>
       </div>
 
       {!live.connected && (
-        <div className="flex items-center gap-2 rounded-md bg-[rgb(253_75_78_/_0.14)] px-3 py-2 text-xs text-warn">
+        <div className="flex items-center gap-2 border-b border-dashed border-white/[0.1] bg-[rgb(253_75_78_/_0.1)] px-4 py-2 text-xs text-warn">
           <span className="size-1.5 animate-pulse rounded-full bg-warn" />
           Reconnecting to the live feed…
         </div>
       )}
 
-      <div className="grid gap-3 lg:h-[900px] lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[minmax(0,1fr)_280px]">
-        <div className="grid min-w-0 gap-3 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid lg:h-[900px] lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[minmax(0,1fr)_280px]">
+        <div className="grid min-w-0 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px]">
           <Panel
             flush
             className="h-[360px] overflow-hidden sm:h-[460px] md:h-[540px] lg:h-full"

@@ -2,14 +2,14 @@ export const PRECISION = 8;
 
 export const SCALE = 10n ** BigInt(PRECISION);
 
-export function toBigInt(value: string, precision: number = PRECISION): bigint {
+export function toBigInt(value: string, precision = PRECISION) {
   const [whole, fraction = ""] = value.split(".");
   if (fraction.length > precision) throw new Error("Precision is too high");
   const padded = fraction.padEnd(precision, "0");
   return BigInt(whole + padded);
 }
 
-export function toString(input: bigint): string {
+export function toString(input: bigint) {
   const negative = input < 0n;
   const abs = negative ? -input : input;
   const whole = abs / SCALE;

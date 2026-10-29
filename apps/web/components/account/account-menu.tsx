@@ -50,11 +50,11 @@ export function AccountMenu() {
   };
 
   return (
-    <div className="flex w-full items-stretch rounded-md border border-hairline bg-panel">
+    <div className="flex w-full items-stretch">
       <button
         type="button"
         onClick={openDeposit}
-        className="hidden flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-l-md bg-panel-raised px-3 text-sm font-medium text-ink-muted transition-colors hover:text-ink sm:flex"
+        className="hidden flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap px-3 text-sm font-medium text-ink-muted transition-colors hover:bg-white/[0.03] hover:text-ink sm:flex"
       >
         <ArrowDownToLine className="size-4" strokeWidth={1.75} />
         Deposit
@@ -62,7 +62,7 @@ export function AccountMenu() {
       <button
         type="button"
         onClick={openWithdraw}
-        className="hidden flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap border-l border-hairline bg-panel-raised px-3 text-sm font-medium text-ink-muted transition-colors hover:text-ink sm:flex"
+        className="hidden flex-1 cursor-pointer items-center justify-center gap-2 whitespace-nowrap border-l border-dashed border-white/[0.1] px-3 text-sm font-medium text-ink-muted transition-colors hover:bg-white/[0.03] hover:text-ink sm:flex"
       >
         <ArrowUpFromLine className="size-4" strokeWidth={1.75} />
         Withdraw
@@ -73,9 +73,9 @@ export function AccountMenu() {
           type="button"
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
-          className="flex w-full min-w-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border-l border-hairline bg-panel-raised px-3 text-sm text-ink transition-colors hover:bg-white/[0.03] sm:w-auto sm:rounded-l-none sm:rounded-r-md"
+          className="flex w-full min-w-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap px-3 text-sm text-ink transition-colors hover:bg-white/[0.03] sm:w-auto sm:border-l sm:border-dashed sm:border-white/[0.1]"
         >
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-ground text-ink-muted">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-panel-raised text-ink-muted">
             <User className="size-3.5" strokeWidth={1.75} />
           </span>
           <span className="tabular hidden min-w-0 truncate text-sm font-medium sm:inline">
@@ -95,7 +95,7 @@ export function AccountMenu() {
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
-            className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-md border border-hairline bg-panel shadow-float"
+            className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-md border border-dashed border-white/[0.14] bg-ground shadow-float"
           >
             <div className="border-b border-hairline px-4 pb-4 pt-4">
               <div className={LABEL}>
@@ -157,10 +157,10 @@ export function AccountMenu() {
 
 function SignInLink() {
   return (
-    <div className="flex w-full items-stretch overflow-hidden rounded-md border border-hairline bg-panel">
+    <div className="flex w-full items-stretch p-3">
       <Link
         href="/signin"
-        className="flex w-full items-center justify-center bg-accent px-4 text-sm font-medium text-[#062018] transition-[filter] hover:brightness-110"
+        className="flex w-full items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-ground transition-colors hover:bg-white"
       >
         Sign in
       </Link>

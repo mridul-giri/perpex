@@ -73,10 +73,7 @@ export const consumeFromGroup = async (
   }
 };
 
-export const getGroupOffset = async (
-  streamKey: string,
-  group: string,
-): Promise<string | null> => {
+export const getGroupOffset = async (streamKey: string, group: string) => {
   try {
     const groups = await subscriber.xInfoGroups(streamKey);
     const match = groups.find((entry) => entry.name === group);
@@ -91,7 +88,7 @@ export const readStreamRange = async (
   streamKey: string,
   startId: string,
   endId: string,
-): Promise<{ id: string; data: unknown }[]> => {
+) => {
   const entries = await subscriber.xRange(streamKey, `(${startId}`, endId);
   const messages: { id: string; data: unknown }[] = [];
 

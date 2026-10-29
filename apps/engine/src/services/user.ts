@@ -1,4 +1,4 @@
-import type { EnginePosition, EngineUser } from "@perpex/types";
+import type { EngineUser } from "@perpex/types";
 import { Users } from "../store/store";
 import { EngineError } from "../utils/engine-error";
 
@@ -7,12 +7,12 @@ export class UserService {
     return Users.get(userId);
   }
 
-  getPositions(userId: string): EnginePosition[] {
+  getPositions(userId: string) {
     const user = this.getUser(userId);
     return user ? [...user.positions.values()] : [];
   }
 
-  onRamp(userId: string, amount: bigint): bigint {
+  onRamp(userId: string, amount: bigint) {
     const user = this.getUser(userId);
 
     if (!user) {
@@ -27,7 +27,7 @@ export class UserService {
     return user.collateral.availableBalance;
   }
 
-  withdraw(userId: string, amount: bigint): bigint {
+  withdraw(userId: string, amount: bigint) {
     const user = this.getUser(userId);
 
     if (!user || user.collateral.availableBalance < amount) {

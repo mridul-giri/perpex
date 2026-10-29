@@ -1,12 +1,10 @@
 import type { Paginated } from "@perpex/types";
 import { ApiError } from "./api-error";
 
-export const encodeCursor = (createdAt: Date, id: string): string =>
+export const encodeCursor = (createdAt: Date, id: string) =>
   Buffer.from(`${createdAt.toISOString()}|${id}`).toString("base64url");
 
-export const decodeCursor = (
-  cursor: string,
-): { createdAt: Date; id: string } => {
+export const decodeCursor = (cursor: string) => {
   const raw = Buffer.from(cursor, "base64url").toString("utf8");
   const [iso, id] = raw.split("|");
 

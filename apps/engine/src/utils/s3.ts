@@ -67,7 +67,7 @@ export const getObjectText = async (key: string) => {
   return body ?? null;
 };
 
-export const listObjects = async (prefix: string): Promise<S3Object[]> => {
+export const listObjects = async (prefix: string) => {
   if (!client) return [];
 
   const objects: S3Object[] = [];

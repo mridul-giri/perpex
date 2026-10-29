@@ -77,7 +77,7 @@ const ONE_MINUTE_MS = 60 * 1000;
 const MAX_MOVE_PER_MINUTE = 0.0018;
 const MAX_WICK = 0.0012;
 
-const buildCandles = (market: DemoMarket, endPrice: number): Candle[] => {
+const buildCandles = (market: DemoMarket, endPrice: number) => {
   const random = createRandom(market.slug);
   const currentMinute = Math.floor(Date.now() / ONE_MINUTE_MS) * ONE_MINUTE_MS;
 
